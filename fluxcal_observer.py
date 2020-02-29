@@ -1,6 +1,8 @@
 import pandas as pd, numpy as np
 
+from typing import Union, List, Dict
 from astropy import units as u
+from astropy.table import Table
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from astropy.coordinates import solar_system_ephemeris, get_body, get_moon
 from astropy.coordinates.angles import Angle
@@ -31,12 +33,14 @@ SSO_ID_DICT = {
 
 
 def get_sso_coordinates(
-        epoch: (float, dict), sso_name: str, raw_table=False) -> SkyCoord:
+        sso_name: str, epoch: Union[float, Dict[str, str]],
+        raw_table: bool = False) -> Union[SkyCoord, Table]:
     """
     Get the ICRS coordinates of a Solar System Object from JPL Horizons
     :param epoch: jd time or epochs dict
     :param sso_name: str. Must be any of Sun, Moon, Mars, Jupter, Uranus,
         Neptune
+    :param raw_table:
     :return: SkyCoord object with the SSO coordinates at the given time
     """
     if sso_name not in SSO_ID_DICT.keys():
@@ -58,8 +62,8 @@ def get_sso_coordinates(
 
 
 def get_separation_to_sso(
-        epoch: (float, dict), sso_name: str,
-        coordinates: SkyCoord) -> Angle:
+        coordinates: SkyCoord, sso_name: str,
+        epoch: Union[float, Dict[str, str]]) -> Angle:
     """
     Get the separation between a set of coordinates and a sso object
     :param epoch: jd time or epochs dict
@@ -68,15 +72,21 @@ def get_separation_to_sso(
     :return: Separation to the Moon in degrees
     """
 
-    sso_source = get_sso_coordinates(epoch, sso_name)
+    sso_source = get_sso_coordinates(sso_name, epoch)
 
     return sso_source.separation(coordinates)
 
 
 def get_separations_dataframe(
-        main_source: SkyCoord, skycoord_dict: dict) -> pd.DataFrame:
-
-    tmpdata = np.zeros([len(main_source), len(skycoord_dict)])
+        main_source: SkyCoord,
+        skycoord_dict: Dict[str, SkyCoord]) -> pd.DataFrame:
+    try:
+        cols = len(main_source)
+        times = main_source.obstime.iso
+    except TypeError:
+        cols = len(list(skycoord_dict.values())[0])
+        times = list(skycoord_dict.values())[0].obstime.iso
+    tmpdata = np.zeros([cols, len(skycoord_dict)])
     columns = []
 
     for i, items in enumerate(skycoord_dict.items()):
@@ -85,7 +95,7 @@ def get_separations_dataframe(
 
     df = pd.DataFrame(
         tmpdata.copy(), columns=columns,
-        index=pd.Series(main_source.obstime.iso).apply(
+        index=pd.Series(times).apply(
             lambda x: pd.Timestamp(x))
     )
 
@@ -99,21 +109,30 @@ def get_separations_dataframe(
     return df
 
 
-def get_jovians_info(epoch: dict, sun: SkyCoord, moon: SkyCoord) -> dict:
+def get_jovians_info(
+        epoch: Union[float, Dict[str, str]], sun: SkyCoord = None,
+        moon: SkyCoord = None) -> Dict[str, pd.DataFrame]:
     """
 
-    :param epoch: Dictionary as {'start': isotime, 'stop': isotime,
+    :param epoch: jd or Dictionary as {'start': isotime, 'stop': isotime,
         'step': jpl_step}
+    :parameter sun:
+    :parameter moon:
     :return:
     """
 
     results={}
 
-    io = get_sso_coordinates(epoch, 'Io')
-    europa = get_sso_coordinates(epoch, 'Europa')
-    ganymede = get_sso_coordinates(epoch, 'Ganymede')
-    callisto = get_sso_coordinates(epoch, 'Callisto')
-    jupiter = get_sso_coordinates(epoch, 'Jupiter')
+    io = get_sso_coordinates('Io', epoch)
+    europa = get_sso_coordinates('Europa', epoch)
+    ganymede = get_sso_coordinates('Ganymede', epoch)
+    callisto = get_sso_coordinates('Callisto', epoch)
+    jupiter = get_sso_coordinates('Jupiter', epoch)
+
+    if not sun:
+        sun = get_sso_coordinates('Sun', epoch)
+    if not moon:
+        moon = get_sso_coordinates('Moon', epoch)
 
     ganymede_df = get_separations_dataframe(
         ganymede, {'Jupiter': jupiter, 'Io': io, 'Europa': europa,
@@ -128,10 +147,32 @@ def get_jovians_info(epoch: dict, sun: SkyCoord, moon: SkyCoord) -> dict:
         callisto, {'Jupiter': jupiter, 'Io': io, 'Europa': europa,
                    'Ganymede': ganymede, 'Sun': sun, 'Moon': moon}
     )
+    callisto_df['altitude'] = callisto.transform_to(
+        AltAz(location=ALMA)).alt.deg
+    callisto_df['lst'] = callisto.obstime.sidereal_time(
+        'apparent', longitude=ALMA.lon).hour
 
     return {'Ganymede' : ganymede_df, 'Callisto': callisto_df}
 
 
+def get_source_info(
+        ra: Angle, dec: Angle, epoch: Union[float, Dict[str, str]] = None,
+        sun: SkyCoord = None, moon: SkyCoord = None) -> pd.DataFrame:
 
+    if (epoch and sun) or (epoch and moon):
+        raise BaseException('Can not provide both an epoch and sso objects')
+    if not sun:
+        sun = get_sso_coordinates('Sun', epoch)
+    if not moon:
+        moon = get_sso_coordinates('Moon', epoch)
 
-
+    coords = SkyCoord(ra, dec, frame='icrs')
+    df = get_separations_dataframe(coords, {'Sun': sun, 'Moon': moon})
+    df['altitude'] = df.timestamp.apply(
+        lambda x: coords.transform_to(
+            AltAz(location=ALMA, obstime=Time(x.isoformat(), scale='utc'))
+        ).alt.deg)
+    df['lst'] = df.timestamp.apply(
+        lambda x: Time(x.isoformat(), scale='utc').sidereal_time(
+            'apparent', longitude=ALMA.lon).hour)
+    return df
