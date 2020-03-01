@@ -1,25 +1,25 @@
-import pandas as pd, numpy as np
+import pandas as pd
+import numpy as np
 
 from typing import Union, List, Dict
 from astropy import units as u
 from astropy.table import Table
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
-from astropy.coordinates import solar_system_ephemeris, get_body, get_moon
 from astropy.coordinates.angles import Angle
 from astroquery.jplhorizons import Horizons, Conf
 from astropy.time import Time
-from astroplan import Observer, FixedTarget
-from astroplan import download_IERS_A, AltitudeConstraint
-#download_IERS_A()
+from astropy.utils import iers
+
+iers.conf.auto_download = True
+iers.conf.remote_timeout = 40
 
 ALMA = EarthLocation(
     lat=-23.0262015 * u.deg, lon=-67.7551257 * u.deg, height=5060 * u.m)
 
-ALMA_OBS = Observer(ALMA)
 ALMA_COORD = {
-    'lon': ALMA_OBS.location.lon.degree,
-    'lat': ALMA_OBS.location.lat.degree,
-    'elevation': ALMA_OBS.location.height.to_value(unit='km')}
+    'lon': ALMA.lon.degree,
+    'lat': ALMA.lat.degree,
+    'elevation': ALMA.height.to_value(unit='km')}
 
 # Add new ephemeris columns that are being returned by the JPL service
 Conf.eph_columns['ObsSub-LON'] = ('a1', 'deg')
@@ -80,6 +80,12 @@ def get_separation_to_sso(
 def get_separations_dataframe(
         main_source: SkyCoord,
         skycoord_dict: Dict[str, SkyCoord]) -> pd.DataFrame:
+    """
+
+    :param main_source:
+    :param skycoord_dict:
+    :return:
+    """
     try:
         cols = len(main_source)
         times = main_source.obstime.iso
@@ -121,8 +127,6 @@ def get_jovians_info(
     :return:
     """
 
-    results={}
-
     io = get_sso_coordinates('Io', epoch)
     europa = get_sso_coordinates('Europa', epoch)
     ganymede = get_sso_coordinates('Ganymede', epoch)
@@ -158,7 +162,15 @@ def get_jovians_info(
 def get_source_info(
         ra: Angle, dec: Angle, epoch: Union[float, Dict[str, str]] = None,
         sun: SkyCoord = None, moon: SkyCoord = None) -> pd.DataFrame:
+    """
 
+    :param ra:
+    :param dec:
+    :param epoch:
+    :param sun:
+    :param moon:
+    :return:
+    """
     if (epoch and sun) or (epoch and moon):
         raise BaseException('Can not provide both an epoch and sso objects')
     if not sun:
