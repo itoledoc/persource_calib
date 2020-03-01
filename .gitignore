@@ -208,4 +208,4 @@ dmypy.json
 .idea/other.xml
 .idea/persource_calib.iml
 .idea/vcs.xml
-!/datatemplate.csv
+/datatemplate.csv
