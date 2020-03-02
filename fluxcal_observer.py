@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from typing import Union, List, Dict
+from typing import Union, Dict
 from astropy import units as u
 from astropy.table import Table
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
@@ -117,7 +117,7 @@ def get_separations_dataframe(
 
 def get_jovians_info(
         epoch: Union[float, Dict[str, str]], sun: SkyCoord = None,
-        moon: SkyCoord = None) -> Dict[str, pd.DataFrame]:
+        moon: SkyCoord = None, debug: bool = False) -> Dict[str, pd.DataFrame]:
     """
 
     :param epoch: jd or Dictionary as {'start': isotime, 'stop': isotime,
@@ -156,12 +156,13 @@ def get_jovians_info(
     callisto_df['lst'] = callisto.obstime.sidereal_time(
         'apparent', longitude=ALMA.lon).hour
 
-    return {'Ganymede' : ganymede_df, 'Callisto': callisto_df}
+    return {'Ganymede': ganymede_df, 'Callisto': callisto_df}
 
 
 def get_source_info(
         ra: Angle, dec: Angle, epoch: Union[float, Dict[str, str]] = None,
-        sun: SkyCoord = None, moon: SkyCoord = None) -> pd.DataFrame:
+        sun: SkyCoord = None, moon: SkyCoord = None,
+        debug: bool = False) -> pd.DataFrame:
     """
 
     :param ra:
