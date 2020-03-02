@@ -117,13 +117,16 @@ def get_separations_dataframe(
 
 def get_jovians_info(
         epoch: Union[float, Dict[str, str]], sun: SkyCoord = None,
-        moon: SkyCoord = None, debug: bool = False) -> Dict[str, pd.DataFrame]:
+        moon: SkyCoord = None, debug: bool = False
+) -> Dict[str, pd.DataFrame]:
     """
-
+    Returns a dictionary with information about the two Jovian's absolute flux
+    calibrators, Ganymede and Callisto,
     :param epoch: jd or Dictionary as {'start': isotime, 'stop': isotime,
         'step': jpl_step}
     :parameter sun:
     :parameter moon:
+    :parameter debug:
     :return:
     """
 
@@ -170,6 +173,7 @@ def get_source_info(
     :param epoch:
     :param sun:
     :param moon:
+    :param debug:
     :return:
     """
     if (epoch and sun) or (epoch and moon):
@@ -191,10 +195,40 @@ def get_source_info(
     return df
 
 
-def df_cal_selector(x: pd.DataFrame) -> pd.DataFrame:
+def df_cal_selector(x: pd.DataFrame) -> pd.Series:
+    """
 
-    if x['Sun'] >= 21 * 3600:
-        return True
+    :param x:
+    :return:
+    """
+    sel_elevation = False
+    sel_sun = False
+    sel_moon = False
+    band3 = False
+    band6 = False
+    band7 = False
+    band9 = False
+
+    if x['altitude'] >= 20:
+        sel_elevation = True
     
-    else:
-        return False
+    if x['Sun'] > 21 * 3600:
+        sel_sun = True
+
+    if x['Moon'] > 5 * 3600:
+        sel_moon = True
+
+    if x['closest_distance'] > 217.45:
+        band3, band6, band7, band9 = True, True, True, True
+    elif x['closest_distance'] > 90.99:
+        band6, band7, band9 = True, True, True
+    elif x['closest_distance'] > 61.72:
+        band7, band9 = True, True
+    elif x['closest_distance'] > 31.46:
+        band9 = True
+
+    return pd.Series(
+        [sel_elevation, sel_sun, sel_moon, band3, band6, band7, band9], 
+        index=['selAlt', 'selSun', 'selMoon', 'Band3', 'Band6', 'Band7',
+               'Band9']
+    )
