@@ -189,3 +189,12 @@ def get_source_info(
         lambda x: Time(x.isoformat(), scale='utc').sidereal_time(
             'apparent', longitude=ALMA.lon).hour)
     return df
+
+
+def df_cal_selector(x: pd.DataFrame) -> pd.DataFrame:
+
+    if x['Sun'] >= 21 * 3600:
+        return True
+    
+    else:
+        return False
