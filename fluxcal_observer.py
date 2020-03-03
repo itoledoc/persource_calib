@@ -184,11 +184,13 @@ def get_jovians_info(
 
 
 def get_source_info(
-        ra: Angle, dec: Angle, epoch: Union[float, Dict[str, str]] = None,
+        sso_name: str = None, epoch: Union[float, Dict[str, str]] = None,
+        ra: Angle = None, dec: Angle = None, obstime: Time = None,
         sun: SkyCoord = None, moon: SkyCoord = None
 ) -> pd.DataFrame:
     """
 
+    :param obstime:
     :param ra:
     :param dec:
     :param epoch:
@@ -196,14 +198,18 @@ def get_source_info(
     :param moon:
     :return:
     """
-    if (epoch and sun) or (epoch and moon):
-        raise BaseException('Can not provide both an epoch and sso objects')
+    if (moon and not sun) or (sun and not moon):
+        raise BaseException('If a sun or moon object is provided, '
+                            'both should be provided')
     if not sun:
         sun = get_sso_coordinates('Sun', epoch)
     if not moon:
         moon = get_sso_coordinates('Moon', epoch)
 
-    coords = SkyCoord(ra, dec, frame='icrs')
+    if sso_name:
+        coords = get_sso_coordinates(sso_name, epoch)
+    else:
+        coords = SkyCoord(ra, dec, frame='icrs')
     df = get_separations_dataframe(coords, {'Sun': sun, 'Moon': moon})
     df['altitude'] = df.timestamp.apply(
         lambda x: coords.transform_to(
