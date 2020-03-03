@@ -14,29 +14,45 @@ iers.conf.auto_download = True
 iers.conf.remote_timeout = 40
 
 ALMA = EarthLocation(
-    lat=-23.0262015 * u.deg, lon=-67.7551257 * u.deg, height=5060 * u.m)
+    lat=-23.0262015 * u.deg,
+    lon=-67.7551257 * u.deg,
+    height=5060 * u.m)
 
 ALMA_COORD = {
     'lon': ALMA.lon.degree,
     'lat': ALMA.lat.degree,
     'elevation': ALMA.height.to_value(unit='km')}
 
-# Add new ephemeris columns that are being returned by the JPL service
+# Add new ephemeris columns that are being returned by the JPL service.
+# Workaround.
 Conf.eph_columns['ObsSub-LON'] = ('a1', 'deg')
 Conf.eph_columns['ObsSub-LAT'] = ('a2', 'deg')
 Conf.eph_columns['SunSub-LON'] = ('a3', 'deg')
 Conf.eph_columns['SunSub-LAT'] = ('a4', 'deg')
 
 SSO_ID_DICT = {
-    'Sun': 0, 'Moon': 301, 'Mars': 4, 'Jupiter': 5, 'Uranus': 7, 'Neptune': 8,
-    'Io': 501, 'Europa': 502, 'Ganymede': 503, 'Callisto': 504}
+    'Sun': 0, 'Moon': 301, 'Mars': 4,
+    'Jupiter': 5, 'Uranus': 7, 'Neptune': 8,
+    'Io': 501, 'Europa': 502, 'Ganymede': 503,
+    'Callisto': 504
+}
+
+BAND_LIMS = {'B3': 217.45,
+             'B6': 90.99,
+             'B7': 61.72,
+             'B9': 31.46}
 
 
 def get_sso_coordinates(
         sso_name: str, epoch: Union[float, Dict[str, str]],
-        raw_table: bool = False) -> Union[SkyCoord, Table]:
+        raw_table: bool = False
+) -> Union[SkyCoord, Table]:
+
     """
-    Get the ICRS coordinates of a Solar System Object from JPL Horizons
+      Get the ICRS coordinates of a Solar System Object from JPL Horizons as a
+    SkyCord object. For debuging purposes, or further information, is possible
+    to get a Table object with the all the information from Horizons.
+
     :param epoch: jd time or epochs dict
     :param sso_name: str. Must be any of Sun, Moon, Mars, Jupter, Uranus,
         Neptune
@@ -63,7 +79,9 @@ def get_sso_coordinates(
 
 def get_separation_to_sso(
         coordinates: SkyCoord, sso_name: str,
-        epoch: Union[float, Dict[str, str]]) -> Angle:
+        epoch: Union[float, Dict[str, str]]
+) -> Angle:
+
     """
     Get the separation between a set of coordinates and a sso object
     :param epoch: jd time or epochs dict
@@ -79,7 +97,9 @@ def get_separation_to_sso(
 
 def get_separations_dataframe(
         main_source: SkyCoord,
-        skycoord_dict: Dict[str, SkyCoord]) -> pd.DataFrame:
+        skycoord_dict: Dict[str, SkyCoord]
+) -> pd.DataFrame:
+
     """
 
     :param main_source:
@@ -117,16 +137,17 @@ def get_separations_dataframe(
 
 def get_jovians_info(
         epoch: Union[float, Dict[str, str]], sun: SkyCoord = None,
-        moon: SkyCoord = None, debug: bool = False
+        moon: SkyCoord = None
 ) -> Dict[str, pd.DataFrame]:
+
     """
     Returns a dictionary with information about the two Jovian's absolute flux
-    calibrators, Ganymede and Callisto,
+    calibrators, Ganymede and Callisto.
+
     :param epoch: jd or Dictionary as {'start': isotime, 'stop': isotime,
         'step': jpl_step}
-    :parameter sun:
-    :parameter moon:
-    :parameter debug:
+    :param sun:
+    :param moon:
     :return:
     """
 
@@ -164,8 +185,8 @@ def get_jovians_info(
 
 def get_source_info(
         ra: Angle, dec: Angle, epoch: Union[float, Dict[str, str]] = None,
-        sun: SkyCoord = None, moon: SkyCoord = None,
-        debug: bool = False) -> pd.DataFrame:
+        sun: SkyCoord = None, moon: SkyCoord = None
+) -> pd.DataFrame:
     """
 
     :param ra:
@@ -173,7 +194,6 @@ def get_source_info(
     :param epoch:
     :param sun:
     :param moon:
-    :param debug:
     :return:
     """
     if (epoch and sun) or (epoch and moon):
@@ -218,13 +238,13 @@ def df_cal_selector(x: pd.DataFrame) -> pd.Series:
     if x['Moon'] > 5 * 3600:
         sel_moon = True
 
-    if x['closest_distance'] > 217.45:
+    if x['closest_distance'] > BAND_LIMS['B3']:
         band3, band6, band7, band9 = True, True, True, True
-    elif x['closest_distance'] > 90.99:
+    elif x['closest_distance'] > BAND_LIMS['B6']:
         band6, band7, band9 = True, True, True
-    elif x['closest_distance'] > 61.72:
+    elif x['closest_distance'] > BAND_LIMS['B7']:
         band7, band9 = True, True
-    elif x['closest_distance'] > 31.46:
+    elif x['closest_distance'] > BAND_LIMS['B9']:
         band9 = True
 
     return pd.Series(
