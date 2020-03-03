@@ -190,10 +190,10 @@ def get_source_info(
 ) -> pd.DataFrame:
     """
 
-    :param obstime:
+    :param sso_name:
+    :param epoch:
     :param ra:
     :param dec:
-    :param epoch:
     :param sun:
     :param moon:
     :return:
@@ -210,14 +210,23 @@ def get_source_info(
         coords = get_sso_coordinates(sso_name, epoch)
     else:
         coords = SkyCoord(ra, dec, frame='icrs')
+
     df = get_separations_dataframe(coords, {'Sun': sun, 'Moon': moon})
-    df['altitude'] = df.timestamp.apply(
-        lambda x: coords.transform_to(
-            AltAz(location=ALMA, obstime=Time(x.isoformat(), scale='utc'))
-        ).alt.deg)
-    df['lst'] = df.timestamp.apply(
-        lambda x: Time(x.isoformat(), scale='utc').sidereal_time(
-            'apparent', longitude=ALMA.lon).hour)
+
+    if not sso_name:
+        df['altitude'] = df.timestamp.apply(
+            lambda x: coords.transform_to(
+                AltAz(location=ALMA, obstime=Time(x.isoformat(), scale='utc'))
+            ).alt.deg)
+        df['lst'] = df.timestamp.apply(
+            lambda x: Time(x.isoformat(), scale='utc').sidereal_time(
+                'apparent', longitude=ALMA.lon).hour)
+    else:
+        df['altitude'] = coords.transform_to(
+            AltAz(location=ALMA)).alt.deg
+        df['lst'] = coords.obstime.sidereal_time(
+            'apparent', longitude=ALMA.lon).hour
+
     return df
 
 
