@@ -43,7 +43,14 @@ BAND_LIMS = {'B3': 217.45,
              'B9': 31.46}
 
 
-def calc_ha(ra, lst):
+def calc_ha(ra: float, lst: float) -> float:
+    """
+      Returns the Hour Angle of an RA coordinate given an LST
+
+    :param ra: Right ascension in degrees
+    :param lst: Local sideral time in decimal hours
+    :return: hour angle, in hours.
+    """
 
     ha = np.degrees(
         np.math.atan2(
@@ -53,6 +60,32 @@ def calc_ha(ra, lst):
     )/15.
 
     return ha
+
+
+def prepare_coords_df(df: pd.DataFrame, coords: SkyCoord) -> None:
+    """
+      Add extra column parameters to DataFrame produced by
+    get_separations_dataframe.
+      These parameters are Altitude, LST and HA, and they are under the columns
+    `altitude`, `lst` and `ha`
+
+    :param df: dataframe created by get_separations_dataframe
+    :param coords: the SkyCoord object that was used to create the `df`
+    """
+
+    if df.shape[0] != len(coords):
+        raise ValueError(
+            'The input dataframe was not generated from the given SkyCoord '
+            'object')
+
+    df['altitude'] = coords.transform_to(
+        AltAz(location=ALMA)).alt.deg
+    df['lst'] = coords.obstime.sidereal_time(
+        'apparent', longitude=ALMA.lon).hour
+    df['ra'] = coords.ra.deg
+    df['ha'] = df.apply(
+        lambda x: calc_ha(x['ra'], x['lst']), axis=1)
+    df.drop(['ra'], axis=1, inplace=True)
 
 
 def get_sso_coordinates(
@@ -71,6 +104,7 @@ def get_sso_coordinates(
     :param raw_table:
     :return: SkyCoord object with the SSO coordinates at the given time
     """
+
     if sso_name not in SSO_ID_DICT.keys():
         raise KeyError('SSO Name provided is not valid.')
 
@@ -79,6 +113,7 @@ def get_sso_coordinates(
         id_type='id'
     )
     source_table = source_query.ephemerides()
+
     if raw_table:
         return source_table
 
@@ -174,70 +209,61 @@ def get_jovians_info(
     if not moon:
         moon = get_sso_coordinates('Moon', epoch)
 
+    if len(sun) != len(moon):
+        raise BaseException('sun and moon mast have the same epochs')
+    check_ep = np.array(sun.obstime) != np.array(moon.obstime)
+    if check_ep.all():
+        raise BaseException('sun and moon mast have the same epochs')
+
     ganymede_df = get_separations_dataframe(
         ganymede, {'Jupiter': jupiter, 'Io': io, 'Europa': europa,
                    'Callisto': callisto, 'Sun': sun, 'Moon': moon}
     )
-    ganymede_df['altitude'] = ganymede.transform_to(
-        AltAz(location=ALMA)).alt.deg
-    ganymede_df['lst'] = ganymede.obstime.sidereal_time(
-        'apparent', longitude=ALMA.lon).hour
+    prepare_coords_df(ganymede_df, ganymede)
 
     callisto_df = get_separations_dataframe(
         callisto, {'Jupiter': jupiter, 'Io': io, 'Europa': europa,
                    'Ganymede': ganymede, 'Sun': sun, 'Moon': moon}
     )
-    callisto_df['altitude'] = callisto.transform_to(
-        AltAz(location=ALMA)).alt.deg
-    callisto_df['lst'] = callisto.obstime.sidereal_time(
-        'apparent', longitude=ALMA.lon).hour
+    prepare_coords_df(callisto_df, callisto)
 
     return {'Ganymede': ganymede_df, 'Callisto': callisto_df}
 
 
 def get_source_info(
-        sso_name: str = None, epoch: Union[float, Dict[str, str]] = None,
-        ra: Angle = None, dec: Angle = None, obstime: Time = None,
-        sun: SkyCoord = None, moon: SkyCoord = None
+        name: str, sun: SkyCoord, moon: SkyCoord, ra: Angle = None,
+        dec: Angle = None
 ) -> pd.DataFrame:
     """
 
-    :param sso_name:
-    :param epoch:
+    :param name:
     :param ra:
     :param dec:
     :param sun:
     :param moon:
     :return:
     """
-    if (moon and not sun) or (sun and not moon):
-        raise BaseException('If a sun or moon object is provided, '
-                            'both should be provided')
-    if not sun:
-        sun = get_sso_coordinates('Sun', epoch)
-    if not moon:
-        moon = get_sso_coordinates('Moon', epoch)
+    if len(sun) != len(moon):
+        raise BaseException('sun and moon mast have the same epochs')
+    check_ep = np.array(sun.obstime) != np.array(moon.obstime)
+    if check_ep.all():
+        raise BaseException('sun and moon mast have the same epochs')
 
-    if sso_name:
-        coords = get_sso_coordinates(sso_name, epoch)
+    time_array = sun.obstime.isot
+
+    if name in SSO_ID_DICT.keys():
+        coords = get_sso_coordinates(
+            name, {'start': time_array[0], 'end': time_array[-1],
+                   'step': '15min'}
+        )
     else:
-        coords = SkyCoord(ra, dec, frame='icrs')
+        ra = np.ones(len(time_array)) * ra
+        dec = np.ones(len(time_array)) * dec
+        obstime = sun.obstime
+        coords = SkyCoord(ra, dec, frame='icrs', obstime=obstime)
 
     df = get_separations_dataframe(coords, {'Sun': sun, 'Moon': moon})
-
-    if not sso_name:
-        df['altitude'] = df.timestamp.apply(
-            lambda x: coords.transform_to(
-                AltAz(location=ALMA, obstime=Time(x.isoformat(), scale='utc'))
-            ).alt.deg)
-        df['lst'] = df.timestamp.apply(
-            lambda x: Time(x.isoformat(), scale='utc').sidereal_time(
-                'apparent', longitude=ALMA.lon).hour)
-    else:
-        df['altitude'] = coords.transform_to(
-            AltAz(location=ALMA)).alt.deg
-        df['lst'] = coords.obstime.sidereal_time(
-            'apparent', longitude=ALMA.lon).hour
+    prepare_coords_df(df, coords)
 
     return df
 
