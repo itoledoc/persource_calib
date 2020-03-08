@@ -76,8 +76,8 @@ class FluxcalObs(object):
         if debug:
             return df
         else:
-            cols = ['timestamp', 'source', 'lst', 'ha', 'closest_object',
-                    'closest_distance', 'altitude', 'ha']
+            cols = ['timestamp', 'source', 'lst', 'ha', 'Sun', 'Moon',
+                    'closest_object', 'closest_distance', 'altitude', 'ha']
             return df[cols]
 
     @staticmethod
