@@ -1,6 +1,7 @@
 import pytest
 from fluxcal_observer import *
 
+
 test_source = SkyCoord(ra=10.2 * u.hour, dec=-22.1*u.deg, frame='icrs')
 
 epoch1 = {'start': '2020-03-01', 'stop': '2020-03-03', 'step': '15min'}

@@ -1,4 +1,6 @@
 from tools import *
+from astropy.coordinates.angles import Angle
+from astropy.coordinates import AltAz
 from astropy.utils import iers
 
 iers.conf.auto_download = True

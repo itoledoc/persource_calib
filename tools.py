@@ -3,8 +3,7 @@ import pandas as pd
 from typing import Union, Dict
 from astropy import units as u
 from astropy.table import Table
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz
-from astropy.coordinates.angles import Angle
+from astropy.coordinates import SkyCoord, EarthLocation
 from astroquery.jplhorizons import Horizons, Conf
 from astropy.time import Time
 
