@@ -77,7 +77,7 @@ class FluxcalObs(object):
             return df
         else:
             cols = ['timestamp', 'source', 'lst', 'ha', 'Sun', 'Moon',
-                    'closest_object', 'closest_distance', 'altitude', 'ha']
+                    'closest_object', 'closest_distance', 'altitude']
             return df[cols]
 
     @staticmethod
@@ -144,8 +144,12 @@ class FluxcalObs(object):
 
         new_source = self._create_source(name, ra, dec, skycoord_dict)
 
-        self.main_frame = pd.concat([self.main_frame, new_source])
-        self.sources.append(name)
+        try:
+            self.main_frame = pd.concat([self.main_frame, new_source])
+            self.sources.append(name)
+        except AssertionError:
+            print('Can\'t add any more sources once the `apply_selector` '
+                  'has been used')
 
     def apply_selector(
             self, horizon: float = 20., sun_limit: float = 21.,
