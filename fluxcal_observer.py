@@ -183,37 +183,30 @@ def get_separations_dataframe(
 
 
 def get_jovians_info(
-        epoch: Union[float, Dict[str, str]], sun: SkyCoord = None,
-        moon: SkyCoord = None
-) -> Dict[str, pd.DataFrame]:
+        sun: SkyCoord, moon: SkyCoord) -> Dict[str, pd.DataFrame]:
 
     """
     Returns a dictionary with information about the two Jovian's absolute flux
     calibrators, Ganymede and Callisto.
 
-    :param epoch: jd or Dictionary as {'start': isotime, 'stop': isotime,
-        'step': jpl_step}
     :param sun:
     :param moon:
     :return:
     """
-
-    io = get_sso_coordinates('Io', epoch)
-    europa = get_sso_coordinates('Europa', epoch)
-    ganymede = get_sso_coordinates('Ganymede', epoch)
-    callisto = get_sso_coordinates('Callisto', epoch)
-    jupiter = get_sso_coordinates('Jupiter', epoch)
-
-    if not sun:
-        sun = get_sso_coordinates('Sun', epoch)
-    if not moon:
-        moon = get_sso_coordinates('Moon', epoch)
 
     if len(sun) != len(moon):
         raise BaseException('sun and moon mast have the same epochs')
     check_ep = np.array(sun.obstime) != np.array(moon.obstime)
     if check_ep.all():
         raise BaseException('sun and moon mast have the same epochs')
+
+    time_array = sun.obstime.isot
+    epoch = {'start': time_array[0], 'end': time_array[-1], 'step': '15min'}
+    io = get_sso_coordinates('Io', epoch)
+    europa = get_sso_coordinates('Europa', epoch)
+    ganymede = get_sso_coordinates('Ganymede', epoch)
+    callisto = get_sso_coordinates('Callisto', epoch)
+    jupiter = get_sso_coordinates('Jupiter', epoch)
 
     ganymede_df = get_separations_dataframe(
         ganymede, {'Jupiter': jupiter, 'Io': io, 'Europa': europa,
