@@ -43,6 +43,18 @@ BAND_LIMS = {'B3': 217.45,
              'B9': 31.46}
 
 
+def calc_ha(ra, lst):
+
+    ha = np.degrees(
+        np.math.atan2(
+            np.sin(np.deg2rad(lst*15.) - np.deg2rad(ra)),
+            np.cos(np.deg2rad(lst*15.) - np.deg2rad(ra))
+        )
+    )/15.
+
+    return ha
+
+
 def get_sso_coordinates(
         sso_name: str, epoch: Union[float, Dict[str, str]],
         raw_table: bool = False
