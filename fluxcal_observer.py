@@ -7,10 +7,15 @@ iers.conf.auto_download = True
 iers.conf.remote_timeout = 40
 
 
-class FluxcalObs(object):
+class FluxcalObs:
 
-    def __init__(self, start, stop, step='15min'):
+    def __init__(self, start: str, stop: str, step: str = '15min'):
+        """
 
+        :param start:
+        :param stop:
+        :param step:
+        """
         self.epoch = {'start': start, 'stop': stop, 'step': step}
 
         self.sun = get_sso_coordinates('Sun', self.epoch)
@@ -42,14 +47,14 @@ class FluxcalObs(object):
     def _create_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
             skycoord_dict: Dict[str, SkyCoord] = None, debug: bool = False
-    ) -> pd.DataFrame:
+        ) -> pd.DataFrame:
         """
 
         :param name:
         :param ra:
         :param dec:
-        :param sun:
-        :param moon:
+        :param skycoord_dict:
+        :param debug:
         :return:
         """
 
@@ -113,12 +118,11 @@ class FluxcalObs(object):
         return df
 
     @staticmethod
-    def _prepare_coords_df(df: pd.DataFrame, coords: SkyCoord) -> None:
+    def _prepare_coords_df(df: pd.DataFrame, coords: SkyCoord):
         """
-          Add extra column parameters to DataFrame produced by
-        get_separations_dataframe.
-          These parameters are Altitude, LST and HA, and they are under the columns
-        `altitude`, `lst` and `ha`
+           Add extra column parameters to a DataFrame produced by
+        _build_dataframe. These parameters are Altitude, LST and HA, and
+        they are under the columns `altitude`, `lst` and `ha`
 
         :param df: dataframe created by get_separations_dataframe
         :param coords: the SkyCoord object that was used to create the `df`
@@ -141,11 +145,18 @@ class FluxcalObs(object):
     def add_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
             skycoord_dict: Dict[str, SkyCoord] = None):
+        """
 
+        :param name:
+        :param ra:
+        :param dec:
+        :param skycoord_dict:
+        """
         new_source = self._create_source(name, ra, dec, skycoord_dict)
 
         try:
-            self.main_frame = pd.concat([self.main_frame, new_source])
+            self.main_frame = pd.concat([self.main_frame, new_source], axis=0,
+                                        sort=False)
             self.sources.append(name)
         except AssertionError:
             print('Can\'t add any more sources once the `apply_selector` '
@@ -153,17 +164,13 @@ class FluxcalObs(object):
 
     def apply_selector(
             self, horizon: float = 20., sun_limit: float = 21.,
-            moon_limit: float = 5.
-    ) -> None:
+            moon_limit: float = 5.):
 
         """
 
         :param horizon:
         :param sun_limit:
         :param moon_limit:
-        :return:
-        :param df:
-        :return:
         """
 
         self.main_frame['selAlt'] = self.main_frame.altitude.apply(
