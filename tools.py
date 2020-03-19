@@ -70,7 +70,7 @@ def get_sso_coordinates(
 
     :param epoch: jd time or epochs dict
     :param sso_name: str. Must be any of Sun, Moon, Mars, Jupter, Uranus,
-        Neptune
+       Neptune
     :param raw_table:
     :return: SkyCoord object with the SSO coordinates at the given time
     """

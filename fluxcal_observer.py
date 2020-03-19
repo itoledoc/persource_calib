@@ -11,10 +11,15 @@ class FluxcalObs:
 
     def __init__(self, start: str, stop: str, step: str = '15min'):
         """
+          Class to handle the observability of Calibrators that need monitoring.
 
-        :param start:
-        :param stop:
-        :param step:
+        :param start: a start date in format 'YYYY-MM-DD', as string.
+        :param stop: an end date, string. Same format
+        :param step: optional, every how much time do we information (specially
+          relevant for ephemeris objects)
+
+        Retunrs an instance
+
         """
         self.epoch = {'start': start, 'stop': stop, 'step': step}
 
@@ -36,19 +41,24 @@ class FluxcalObs:
         self.add_source(
             'Ganymede', skycoord_dict={
                 'Jupiter': self._jupiter_skycoord, 'Io': self._io_skycoord,
-                'Europa': self._europa_skycoord, 'Callisto': self._callisto_skycoord,
-                'Sun': self.sun, 'Moon': self.moon})
+                'Europa': self._europa_skycoord,
+                'Callisto': self._callisto_skycoord, 'Sun': self.sun,
+                'Moon': self.moon})
         self.add_source(
             'Callisto', skycoord_dict={
                 'Jupiter': self._jupiter_skycoord, 'Io': self._io_skycoord,
-                'Europa': self._europa_skycoord, 'Ganymede': self._ganymede_skycoord,
-                'Sun': self.sun, 'Moon': self.moon})
+                'Europa': self._europa_skycoord,
+                'Ganymede': self._ganymede_skycoord, 'Sun': self.sun,
+                'Moon': self.moon})
 
     def _create_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
             skycoord_dict: Dict[str, SkyCoord] = None, debug: bool = False
         ) -> pd.DataFrame:
         """
+          Auxiliary method to create sources given a name, coordinates, and a
+        dictionary. The dictionary contains SkyCoord objects for the reference
+        sources that will be used to calculate limiting distances.
 
         :param name:
         :param ra:
