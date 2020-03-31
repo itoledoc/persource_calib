@@ -12,7 +12,6 @@ from astropy.coordinates.angles import Angle
 from astropy.coordinates import AltAz
 from astropy.utils import iers
 
-
 iers.conf.auto_download = True
 iers.conf.remote_timeout = 40
 
@@ -97,17 +96,21 @@ class FluxcalObs(object):
             self, name: str, ra: Angle = None, dec: Angle = None,
             skycoord_dict: Dict[str, SkyCoord] = None, debug: bool = False
             ) -> pd.DataFrame:
-        """
-          Auxiliary method to create sources given a name, coordinates, and a
+        """Auxiliary method to create sources given a name, coordinates, and a
         dictionary. The dictionary contains SkyCoord objects for the reference
         sources that will be used to calculate limiting distances.
 
-        :param name:
-        :param ra:
-        :param dec:
-        :param skycoord_dict:
-        :param debug:
-        :return:
+        Parameters
+        ----------
+        name : str
+        ra : astropy Angle
+        dec : astropy Angle
+        skycoord_dict : dict
+        debut : boolean
+
+        Returns
+        -------
+        DataFrame
         """
 
         if name in SSO_ID_DICT.keys():
