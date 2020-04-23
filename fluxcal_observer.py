@@ -48,7 +48,7 @@ JUP_RADIUS = 25.
 
 
 class FluxcalObs(object):
-    """ Class to handle the observability of Calibrators that need monitoring.
+    """ Class to handle Calibrators Monitoring.
 
     Parameters
     ----------
@@ -57,8 +57,7 @@ class FluxcalObs(object):
     stop : string
         An end date, Same format as start
     step : string
-        Optional, every how much time do we information (specially relevant for
-        ephemeris objects)
+        Optional, step lengths between `start` and `stop` dates.
     """
 
     def __init__(self, start: str, stop: str, step: str = '15min'):
@@ -96,16 +95,19 @@ class FluxcalObs(object):
             self, name: str, ra: Angle = None, dec: Angle = None,
             skycoord_dict: Dict[str, SkyCoord] = None, debug: bool = False
             ) -> pd.DataFrame:
-        """Auxiliary method to create sources given a name, coordinates, and a
-        dictionary. The dictionary contains SkyCoord objects for the reference
-        sources that will be used to calculate limiting distances.
+        """Auxiliary method to create a `source` given a name and equatorial
+        coordinates.
 
         Parameters
         ----------
         name : str
+            Source's name
         ra : astropy Angle
+            Source's Right Ascension as an Astropy Angle
         dec : astropy Angle
+            Source's Declination as an Astropy Angle
         skycoord_dict : dict
+            Optional 
         debut : boolean
 
         Returns
