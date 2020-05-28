@@ -69,7 +69,8 @@ class FluxcalObs(object):
 
         self.main_frame = pd.concat(
             [self._create_source('Mars'), self._create_source('Uranus'),
-             self._create_source('Neptune')], axis=0, sort=False)
+             self._create_source('Neptune')], axis=0, sort=False,
+            ignore_index=True)
         self.sources = ['Mars', 'Uranus', 'Neptune']
 
         self._io_skycoord = get_sso_coordinates('Io', self.epoch)
@@ -213,7 +214,7 @@ class FluxcalObs(object):
 
         try:
             self.main_frame = pd.concat([self.main_frame, new_source], axis=0,
-                                        sort=False)
+                                        sort=False, ignore_index=True)
             self.sources.append(name)
         except AssertionError:
             print('Can\'t add any more sources once the `apply_selector` '
