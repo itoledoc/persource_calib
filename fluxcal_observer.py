@@ -44,7 +44,7 @@ BAND_LIMS = {'B3': 217.45,
              'B7': 61.72,
              'B9': 31.46}
 
-JUP_RADIUS = 25.
+JUP_RADIUS = 25. #I think SSR use 20.
 
 
 class FluxcalObs(object):
@@ -94,7 +94,7 @@ class FluxcalObs(object):
 
     def _create_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
-            skycoord_dict: Dict[str, SkyCoord] = None, debug: bool = False
+            ampcalbands: list = [], skycoord_dict: Dict[str, SkyCoord] = None,debug: bool = False
             ) -> pd.DataFrame:
         """Auxiliary method to create a `source` given a name and equatorial
         coordinates.
@@ -107,6 +107,8 @@ class FluxcalObs(object):
             Source's Right Ascension as an Astropy Angle
         dec : astropy Angle
             Source's Declination as an Astropy Angle
+        ampcalbands: list
+            List of boolean for B3,B6,B7, and B9, if it is secondary amplitude calibrator in any of those bands.
         skycoord_dict : dict
             Optional 
         debut : boolean
@@ -120,11 +122,26 @@ class FluxcalObs(object):
             coords = get_sso_coordinates(
                 name, self.epoch
             )
+            # Primary amplitude calibrator kind = 1
+            list_ampcalbands=[1,1,1,1]
         else:
             ra = np.ones(self._steps) * ra
             dec = np.ones(self._steps) * dec
             obstime = self.sun.obstime
             coords = SkyCoord(ra, dec, frame='icrs', obstime=obstime)
+            if len(ampcalbands) == 0:
+                # QSO need observation kind = 3
+                list_ampcalbands = [3, 3, 3, 3]
+            else:
+                # Secondary amplitude calibrator kind = 2
+                list_ampcalbands=[]
+                for k in ampcalbands:
+                    if k:
+                        list_ampcalbands.append(2)
+                    else:
+                        list_ampcalbands.append(3)
+                for i in range(len(list_ampcalbands),4):
+                    list_ampcalbands.append(3)
 
         if skycoord_dict:
             df = self._build_dataframe(
@@ -134,13 +151,13 @@ class FluxcalObs(object):
                 coords, {'Sun': self.sun, 'Moon': self.moon})
 
         self._prepare_coords_df(df, coords)
-
+        df[['kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']] = df.apply(lambda x: pd.Series(list_ampcalbands[:4]), axis=1)
         df['source'] = name
         if debug:
             return df
         else:
-            cols = ['timestamp', 'source', 'lst', 'ha', 'Sun', 'Moon',
-                    'closest_object', 'closest_distance', 'altitude']
+            cols = ['timestamp', 'source', 'lst', 'ha', 'dec', 'Sun', 'Moon',
+                    'closest_object', 'closest_distance', 'altitude','kind_b3','kind_b6','kind_b7','kind_b9']
             return df[cols]
 
     @staticmethod
@@ -196,21 +213,23 @@ class FluxcalObs(object):
         df['lst'] = coords.obstime.sidereal_time(
             'apparent', longitude=ALMA.lon).hour
         df['ra'] = coords.ra.deg
+        df['dec'] = coords.dec.deg
         df['ha'] = df.apply(
             lambda x: calc_ha(x['ra'], x['lst']), axis=1)
         df.drop(['ra'], axis=1, inplace=True)
 
     def add_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
-            skycoord_dict: Dict[str, SkyCoord] = None):
+            ampcalbands: list = [], skycoord_dict: Dict[str, SkyCoord] = None):
         """
 
         :param name:
         :param ra:
         :param dec:
+        :param ampcalbands:
         :param skycoord_dict:
         """
-        new_source = self._create_source(name, ra, dec, skycoord_dict)
+        new_source = self._create_source(name, ra, dec, ampcalbands, skycoord_dict)
 
         try:
             self.main_frame = pd.concat([self.main_frame, new_source], axis=0,
@@ -221,18 +240,38 @@ class FluxcalObs(object):
                   'has been used')
 
     def apply_selector(
-            self, horizon: float = 20., sun_limit: float = 21.,
+            self, horizon: float = 25.,transit_limit: float =86., sun_limit: float = 21.,
             moon_limit: float = 5.):
 
         """
 
         :param horizon:
+        :param transit_limit:
         :param sun_limit:
         :param moon_limit:
         """
-
-        self.main_frame['selAlt'] = self.main_frame.altitude.apply(
-            lambda x: x >= horizon)
+        #From SSR the source selection to observe consider source over 24 deg in elevation (horizon)
+        # and below 87. deg in elevation (transit_limit)
+        horizon_sso=31. #From SSR is 30. deg in elevation
+        transit_limit_sso=79. #From SSR is 80. deg in elevation
+        #horizon_ampcal=40. # or at least 30. the same as SSOs
+        #transit_limit_ampcal=79. # The same as SSOs
+#        self.main_frame['selAlt'] = self.main_frame.altitude.apply(
+#            lambda x: x >= horizon)
+        self.main_frame['selAlt'] = self.main_frame.apply(
+            lambda x: x['altitude'] >= horizon if x['kind_b3'] !=1 else
+            #lambda x: x['altitude'] >= horizon if x['kind_b3'] ==3 else
+            #x['altitude'] >= horizon_ampcal  if x['kind_b3'] == 2 else
+            x['altitude'] >= horizon_sso,axis=1
+            )
+#        self.main_frame['selTran'] = self.main_frame.altitude.apply(
+#            lambda x: x <= transit_limit)
+        self.main_frame['selTran'] = self.main_frame.apply(
+            lambda x: x['altitude'] <= transit_limit if x['kind_b3'] != 1 else
+            #lambda x: x['altitude'] <= transit_limit if x['kind_b3'] == 3 else
+            #x['altitude'] <= transit_limit_ampcal if x['kind_b3'] == 2 else
+            x['altitude'] <= transit_limit_sso,axis=1
+            )
         self.main_frame['selSun'] = self.main_frame.Sun.apply(
             lambda x: x >= sun_limit * 3600)
         self.main_frame['selMoon'] = self.main_frame.Moon.apply(
@@ -242,6 +281,38 @@ class FluxcalObs(object):
 
         self.main_frame[band_columns] = self.main_frame.closest_distance.apply(
             lambda x: band_limits(x))
+
+    def apply_soft_selector(
+            self, horizon: float = 40.,transit_limit: float =80.):
+
+        """
+
+        :param horizon:
+        :param transit_limit:
+        """
+        #We can include soft constraints selection to consider source over 40 deg in elevation (horizon)
+        # and below 80. deg in elevation (transit_limit)
+        horizon_sso=40. #From SSR is 30. deg in elevation
+        transit_limit_sso=79. #From SSR is 80. deg in elevation
+        #horizon=40. # or at least 30. the same as SSOs
+        #transit_limit=79. # The same as SSOs
+        longALMA=-23.0
+        self.main_frame['selSoftAlt'] = self.main_frame.apply(
+            lambda x: abs(x['ha']) <= 1.0  if abs(x['dec']-longALMA) >= 71. and x['kind_b3'] !=1 else
+            x['altitude'] >= horizon if x['kind_b3'] != 1 else
+            x['altitude'] >= horizon_sso,axis=1
+            )
+        self.main_frame['selSoftTran'] = self.main_frame.apply(
+            lambda x: x['altitude'] <= transit_limit  if x['kind_b3'] !=1 else
+            x['altitude'] <= horizon_sso,axis=1
+            )
+
+        #self.main_frame['selSoftB3'] = self.main_frame.apply(
+        #    lambda x: x['altitude'] >= horizon if x['kind_b3'] !=1 else
+        #    #lambda x: x['altitude'] >= horizon if x['kind_b3'] ==3 else
+        #    #x['altitude'] >= horizon_ampcal  if x['kind_b3'] == 2 else
+        #    x['altitude'] >= horizon_sso,axis=1
+        #    )
 
 
 def calc_ha(ra: float, lst: float) -> float:
