@@ -297,7 +297,7 @@ class FluxcalObs(object):
         #horizon=40. # or at least 30. the same as SSOs
         #transit_limit=79. # The same as SSOs
         self.main_frame['selSoftAlt'] = self.main_frame.apply(
-            lambda x: abs(x['ha']) <= 1.0  if abs(x['dec']-ALMA_COORD['lat]) >= 71. and x['kind_b3'] !=1 else
+            lambda x: abs(x['ha']) <= 1.0  if abs(x['dec']-ALMA_COORD['lat']) >= 71. and x['kind_b3'] !=1 else
             x['altitude'] >= horizon if x['kind_b3'] != 1 else
             x['altitude'] >= horizon_sso,axis=1
             )
