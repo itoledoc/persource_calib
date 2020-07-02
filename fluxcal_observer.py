@@ -254,22 +254,16 @@ class FluxcalObs(object):
         # and below 87. deg in elevation (transit_limit)
         horizon_sso=31. #From SSR is 30. deg in elevation
         transit_limit_sso=79. #From SSR is 80. deg in elevation
-        #horizon_ampcal=40. # or at least 30. the same as SSOs
-        #transit_limit_ampcal=79. # The same as SSOs
 #        self.main_frame['selAlt'] = self.main_frame.altitude.apply(
 #            lambda x: x >= horizon)
         self.main_frame['selAlt'] = self.main_frame.apply(
             lambda x: x['altitude'] >= horizon if x['kind_b3'] !=1 else
-            #lambda x: x['altitude'] >= horizon if x['kind_b3'] ==3 else
-            #x['altitude'] >= horizon_ampcal  if x['kind_b3'] == 2 else
             x['altitude'] >= horizon_sso,axis=1
             )
 #        self.main_frame['selTran'] = self.main_frame.altitude.apply(
 #            lambda x: x <= transit_limit)
         self.main_frame['selTran'] = self.main_frame.apply(
             lambda x: x['altitude'] <= transit_limit if x['kind_b3'] != 1 else
-            #lambda x: x['altitude'] <= transit_limit if x['kind_b3'] == 3 else
-            #x['altitude'] <= transit_limit_ampcal if x['kind_b3'] == 2 else
             x['altitude'] <= transit_limit_sso,axis=1
             )
         self.main_frame['selSun'] = self.main_frame.Sun.apply(
@@ -291,13 +285,16 @@ class FluxcalObs(object):
         :param transit_limit:
         """
         #We can include soft constraints selection to consider source over 40 deg in elevation (horizon)
-        # and below 80. deg in elevation (transit_limit)
+        # and below 80. deg in elevation (transit_limit). Specially for secondary amp. cal.
+        #Aditionally for those source at high declination, abs(DEC-ALMA_LATITUDE) >= 49
+        # or max elevation of 41 deg we consider range of time of +/- 1 hour from the
+        # transit as the best observation windows.
         horizon_sso=40. #From SSR is 30. deg in elevation
         transit_limit_sso=79. #From SSR is 80. deg in elevation
         #horizon=40. # or at least 30. the same as SSOs
         #transit_limit=79. # The same as SSOs
         self.main_frame['selSoftAlt'] = self.main_frame.apply(
-            lambda x: abs(x['ha']) <= 1.0  if abs(x['dec']-ALMA_COORD['lat']) >= 71. and x['kind_b3'] !=1 else
+            lambda x: abs(x['ha']) <= 1.0  if abs(x['dec']-ALMA_COORD['lat']) >= 49. and x['kind_b3'] !=1 else
             x['altitude'] >= horizon if x['kind_b3'] != 1 else
             x['altitude'] >= horizon_sso,axis=1
             )
@@ -305,13 +302,6 @@ class FluxcalObs(object):
             lambda x: x['altitude'] <= transit_limit  if x['kind_b3'] !=1 else
             x['altitude'] <= horizon_sso,axis=1
             )
-
-        #self.main_frame['selSoftB3'] = self.main_frame.apply(
-        #    lambda x: x['altitude'] >= horizon if x['kind_b3'] !=1 else
-        #    #lambda x: x['altitude'] >= horizon if x['kind_b3'] ==3 else
-        #    #x['altitude'] >= horizon_ampcal  if x['kind_b3'] == 2 else
-        #    x['altitude'] >= horizon_sso,axis=1
-        #    )
 
 
 def calc_ha(ra: float, lst: float) -> float:
