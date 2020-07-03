@@ -94,7 +94,7 @@ class FluxcalObs(object):
 
     def _create_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
-            ampcalbands: list = [], skycoord_dict: Dict[str, SkyCoord] = None,debug: bool = False
+            kindofsource: list = [], skycoord_dict: Dict[str, SkyCoord] = None,debug: bool = False
             ) -> pd.DataFrame:
         """Auxiliary method to create a `source` given a name and equatorial
         coordinates.
@@ -107,8 +107,14 @@ class FluxcalObs(object):
             Source's Right Ascension as an Astropy Angle
         dec : astropy Angle
             Source's Declination as an Astropy Angle
-        ampcalbands: list
-            List of boolean for B3,B6,B7, and B9, if it is secondary amplitude calibrator in any of those bands.
+        kindofsource: list
+            List of integer for B3,B6,B7, and B9, giving the kind of source.
+            If the source not need to be observed in a band the integer should be 0.
+            If it is a secondary amplitude calibrator in a band the integer should be 2.
+            If it is a source already observed but with pending ampcal in a band the integer should be 3.
+            If it is source with pending observation in a band the integer should be 4.
+            For primary amp cal the integer is 1. By default if the list is empty the source
+            is assumed need to be observed in all bands so it is [4,4,4,4].
         skycoord_dict : dict
             Optional 
         debut : boolean
@@ -117,31 +123,36 @@ class FluxcalObs(object):
         -------
         DataFrame
         """
+        #Definition for the kind of source could be
+        # Primary amplitude calibrator kind = 1
+        # Secondary amplitude calibrator kind = 2
+        # QSO need a secondary amplitud calibrator kind = 3
+        # QSO need a observation kind = 4
 
         if name in SSO_ID_DICT.keys():
             coords = get_sso_coordinates(
                 name, self.epoch
             )
             # Primary amplitude calibrator kind = 1
-            list_ampcalbands=[1,1,1,1]
+            list_kindofsource=[1,1,1,1]
         else:
             ra = np.ones(self._steps) * ra
             dec = np.ones(self._steps) * dec
             obstime = self.sun.obstime
             coords = SkyCoord(ra, dec, frame='icrs', obstime=obstime)
-            if len(ampcalbands) == 0:
-                # QSO need observation kind = 3
-                list_ampcalbands = [3, 3, 3, 3]
+            if len(kindofsource) == 0:
+                # QSO need observation kind = 4
+                list_kindofsource = [4, 4, 4, 4]
             else:
                 # Secondary amplitude calibrator kind = 2
-                list_ampcalbands=[]
-                for k in ampcalbands:
-                    if k:
-                        list_ampcalbands.append(2)
+                list_kindofsource=[]
+                for k in kindofsource:
+                    if k < 5:
+                        list_kindofsource.append(k)
                     else:
-                        list_ampcalbands.append(3)
-                for i in range(len(list_ampcalbands),4):
-                    list_ampcalbands.append(3)
+                        list_kindofsource.append(4)
+                for i in range(len(list_kindofsource),4):
+                    list_kindofsource.append(4)
 
         if skycoord_dict:
             df = self._build_dataframe(
@@ -151,7 +162,7 @@ class FluxcalObs(object):
                 coords, {'Sun': self.sun, 'Moon': self.moon})
 
         self._prepare_coords_df(df, coords)
-        df[['kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']] = df.apply(lambda x: pd.Series(list_ampcalbands[:4]), axis=1)
+        df[['kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']] = df.apply(lambda x: pd.Series(list_kindofsource[:4]), axis=1)
         df['source'] = name
         if debug:
             return df
@@ -220,16 +231,23 @@ class FluxcalObs(object):
 
     def add_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
-            ampcalbands: list = [], skycoord_dict: Dict[str, SkyCoord] = None):
+            kindofsource: list = [], skycoord_dict: Dict[str, SkyCoord] = None):
         """
 
         :param name:
         :param ra:
         :param dec:
-        :param ampcalbands:
+        :param kindofsource:
+            List of integer for B3,B6,B7, and B9, giving the kind of source.
+            If the source not need to be observed in a band the integer should be 0.
+            If it is a secondary amplitude calibrator in a band the integer should be 2.
+            If it is a already source observed but with pending ampcal in a band the integer should be 3.
+            If it is source with pending observation in a band the integer should be 4.
+            For primary amp cal the integer is 1. By default if the list is empty the source
+            is assumed need to be observed in all bands so it is [4,4,4,4].
         :param skycoord_dict:
         """
-        new_source = self._create_source(name, ra, dec, ampcalbands, skycoord_dict)
+        new_source = self._create_source(name, ra, dec, kindofsource, skycoord_dict)
 
         try:
             self.main_frame = pd.concat([self.main_frame, new_source], axis=0,
