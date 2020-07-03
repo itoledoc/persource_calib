@@ -124,10 +124,11 @@ class FluxcalObs(object):
         DataFrame
         """
         #Definition for the kind of source could be
+        # No need observation kind = 0
         # Primary amplitude calibrator kind = 1
         # Secondary amplitude calibrator kind = 2
         # QSO need a secondary amplitud calibrator kind = 3
-        # QSO need a observation kind = 4
+        # QSO need a observation kind = 4.
 
         if name in SSO_ID_DICT.keys():
             coords = get_sso_coordinates(
