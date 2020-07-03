@@ -300,9 +300,104 @@ class FluxcalObs(object):
             )
         self.main_frame['selSoftTran'] = self.main_frame.apply(
             lambda x: x['altitude'] <= transit_limit  if x['kind_b3'] !=1 else
-            x['altitude'] <= horizon_sso,axis=1
+            x['altitude'] <= transit_limit_sso,axis=1
             )
 
+    def add_ampcal_condition(self):
+        #To run this procedure we should first run apply_selector
+        # and apply_soft_selector. We need to include the case when
+        # one or both procedures are not applied to the data.
+        caldata_hardconst = self.main_frame.query(
+            'selAlt == True and selTran == True and selSun == True and selMoon == True'
+        ).copy()
+        caldata_hardconst[['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']] = caldata_hardconst[
+            ['kind_b3', 'kind_b6', 'kind_b7']].applymap(lambda x: 1 if x == 2 else 0)
+        caldata_softconst = caldata_hardconst.query(
+            'selSoftAlt == True and selSoftTran == True'
+        ).copy()
+        #Primary amplitud calibrator
+        primary_ampcal_availability_hardconst=caldata_hardconst.query('kind_b3 == 1').groupby(
+            ['timestamp']
+        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
+        ).reset_index().rename(columns={'Band3':'B3_prim_ampcal','Band6':'B6_prim_ampcal','Band7':'B7_prim_ampcal'})
+
+        primary_ampcal_availability_softconst=caldata_softconst.query('kind_b3 == 1').groupby(
+            ['timestamp']
+        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
+        ).reset_index().rename(columns={'Band3':'B3_soft_prim_ampcal','Band6':'B6_soft_prim_ampcal','Band7':'B7_soft_prim_ampcal'})
+
+        #Secondary amplitud calibrator
+        secondary_ampcal_availability_hardconst=caldata_hardconst.query('kind_b3 != 1').groupby(
+            ['timestamp']
+        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+        ).reset_index()
+        secondary_ampcal_availability_softconst=caldata_softconst.query('kind_b3 != 1').groupby(
+            ['timestamp']
+        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+        ).reset_index().rename(columns={'B3_second_ampcal':'B3_soft_second_ampcal','B6_second_ampcal':'B6_soft_second_ampcal','B7_second_ampcal':'B7_soft_second_ampcal'})
+
+        self.main_frame['selAll']=self.main_frame.apply(lambda x: 1 if x['selAlt'] == True and x['selTran'] == True and x['selSun'] == True and x['selMoon'] == True else 0,axis=1)
+        self.main_frame['selSoftAll']=self.main_frame.apply(lambda x: 1 if x['selSoftAlt'] == True and x['selSoftTran'] == True and x['selSun'] == True and x['selMoon'] == True else 0,axis=1)
+        self.main_frame=self.main_frame.merge(primary_ampcal_availability_hardconst,on='timestamp',how='left').fillna(0.0)
+        self.main_frame=self.main_frame.merge(primary_ampcal_availability_softconst,on='timestamp',how='left').fillna(0.0)
+        self.main_frame=self.main_frame.merge(secondary_ampcal_availability_hardconst,on='timestamp',how='left').fillna(0.0)
+        self.main_frame=self.main_frame.merge(secondary_ampcal_availability_softconst,on='timestamp',how='left').fillna(0.0)
+
+
+    def get_observation_windows(self, soft_const: bool = False):
+
+        """
+        :param soft_const:
+        """
+        if soft_const:
+            find_windows = self.main_frame.query(
+                'selSoftAlt == True and selSoftTran == True and selSun == True and selMoon == True'
+            ).groupby(
+                ['source', 'timestamp']
+            ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}).sort_values(by=['source', 'timestamp'])
+        else:
+            find_windows = self.main_frame.query(
+                'selAlt == True and selTran == True and selSun == True and selMoon == True'
+            ).groupby(
+                ['source','timestamp']
+            ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}).sort_values(by=['source', 'timestamp'])
+
+        a = find_windows.reset_index().sort_values(by=['source', 'timestamp'])
+        a = a.merge((find_windows - find_windows.shift(1)).reset_index(), on=['source', 'timestamp'], suffixes=('', '_diff'))
+        a = a.merge((find_windows - find_windows.shift(-1)).reset_index(), on=['source', 'timestamp'],suffixes=('', '_diff_prev'))
+        a['timediff'] = a.timestamp.diff().apply(lambda x: x.total_seconds() / 3600.0).fillna(-24.)
+        a['timediff_prev'] = a.timestamp.diff(periods=-1).apply(lambda x: x.total_seconds() / 3600.0).fillna(24.)
+        kind_source = self.main_frame[['source', 'kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']].drop_duplicates()
+
+        startwindow = a.query('Band3 == True and (Band3_diff == 1 or abs(timediff) > 0.25)')[
+            ['source', 'timestamp']].reset_index(drop=True).copy()
+        endwindow = a.query('Band3 == True and (Band3_diff_prev == 1 or abs(timediff_prev) > 0.25)')[
+            ['source', 'timestamp']].reset_index(drop=True).copy()
+        windows = startwindow.merge(endwindow[['timestamp']], left_index=True, right_index=True).rename(
+            columns={'timestamp_x': 'start', 'timestamp_y': 'end'})
+        windows['band'] = 3
+        windows = windows.merge(kind_source[['source', 'kind_b3']].rename(columns={'kind_b3': 'kind'}), on='source')
+
+        startwindow_b6 = a.query('Band6 == True and (Band6_diff == 1 or abs(timediff) > 0.25)')[
+            ['source', 'timestamp']].reset_index(drop=True).copy()
+        endwindow_b6 = a.query('Band6 == True and (Band6_diff_prev == 1 or abs(timediff_prev) > 0.25)')[
+            ['source', 'timestamp']].reset_index(drop=True).copy()
+        windows_b6 = startwindow_b6.merge(endwindow_b6[['timestamp']], left_index=True, right_index=True).rename(
+            columns={'timestamp_x': 'start', 'timestamp_y': 'end'})
+        windows_b6['band'] = 6
+        windows_b6 = windows_b6.merge(kind_source[['source', 'kind_b6']].rename(columns={'kind_b6': 'kind'}),
+                                      on='source')
+        windows = windows.append(windows_b6)
+        startwindow_b7 = a.query('Band7 == True and (Band7_diff == 1 or abs(timediff) > 0.25)')[
+            ['source', 'timestamp']].reset_index(drop=True).copy()
+        endwindow_b7 = a.query('Band7 == True and (Band7_diff_prev == 1 or abs(timediff_prev) > 0.25)')[
+            ['source', 'timestamp']].reset_index(drop=True).copy()
+        windows_b7 = startwindow_b6.merge(endwindow_b6[['timestamp']], left_index=True, right_index=True).rename(
+            columns={'timestamp_x': 'start', 'timestamp_y': 'end'})
+        windows_b7['band'] = 7
+        windows_b7 = windows_b7.merge(kind_source[['source', 'kind_b7']].rename(columns={'kind_b7': 'kind'}),
+                                      on='source')
+        return windows.append(windows_b7)
 
 def calc_ha(ra: float, lst: float) -> float:
     """
