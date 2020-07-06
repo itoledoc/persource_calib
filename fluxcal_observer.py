@@ -289,6 +289,8 @@ class FluxcalObs(object):
             lambda x: x >= sun_limit * 3600)
         self.main_frame['selMoon'] = self.main_frame.Moon.apply(
             lambda x: x >= moon_limit * 3600)
+        self.main_frame['selAll']=self.main_frame.apply(
+            lambda x: True if x['selAlt'] and x['selTran'] and x['selSun'] and x['selMoon'] else False,axis=1)
 
         band_columns = ['Band3', 'Band6', 'Band7', 'Band9']
 
@@ -321,18 +323,20 @@ class FluxcalObs(object):
             lambda x: x['altitude'] <= transit_limit  if x['kind_b3'] !=1 else
             x['altitude'] <= transit_limit_sso,axis=1
             )
+        self.main_frame['selSoftAll']=self.main_frame.apply(lambda x: True if x['selSoftAlt'] == True and x['selSoftTran'] == True and x['selAll'] == True else False,axis=1)
+
 
     def add_ampcal_condition(self):
         #To run this procedure we should first run apply_selector
         # and apply_soft_selector. We need to include the case when
         # one or both procedures are not applied to the data.
         caldata_hardconst = self.main_frame.query(
-            'selAlt == True and selTran == True and selSun == True and selMoon == True'
+            'selAll == True'
         ).copy()
         caldata_hardconst[['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']] = caldata_hardconst[
             ['kind_b3', 'kind_b6', 'kind_b7']].applymap(lambda x: 1 if x == 2 else 0)
         caldata_softconst = caldata_hardconst.query(
-            'selSoftAlt == True and selSoftTran == True'
+            'selSoftAll == True'
         ).copy()
         #Primary amplitud calibrator
         primary_ampcal_availability_hardconst=caldata_hardconst.query('kind_b3 == 1').groupby(
@@ -355,13 +359,80 @@ class FluxcalObs(object):
         ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
         ).reset_index().rename(columns={'B3_second_ampcal':'B3_soft_second_ampcal','B6_second_ampcal':'B6_soft_second_ampcal','B7_second_ampcal':'B7_soft_second_ampcal'})
 
-        self.main_frame['selAll']=self.main_frame.apply(lambda x: 1 if x['selAlt'] == True and x['selTran'] == True and x['selSun'] == True and x['selMoon'] == True else 0,axis=1)
-        self.main_frame['selSoftAll']=self.main_frame.apply(lambda x: 1 if x['selSoftAlt'] == True and x['selSoftTran'] == True and x['selSun'] == True and x['selMoon'] == True else 0,axis=1)
         self.main_frame=self.main_frame.merge(primary_ampcal_availability_hardconst,on='timestamp',how='left').fillna(0.0)
         self.main_frame=self.main_frame.merge(primary_ampcal_availability_softconst,on='timestamp',how='left').fillna(0.0)
         self.main_frame=self.main_frame.merge(secondary_ampcal_availability_hardconst,on='timestamp',how='left').fillna(0.0)
         self.main_frame=self.main_frame.merge(secondary_ampcal_availability_softconst,on='timestamp',how='left').fillna(0.0)
 
+    def get_source_with_ampcal(self,ampcal_softconst: bool = True, source_softconst: bool = True,
+                               min_num_with_ampcal_sample: int = 5):
+        a = self.main_frame.copy()
+        if ampcal_softconst:
+            a[['B3_with_prim_ampcal', 'B6_with_prim_ampcal', 'B7_with_prim_ampcal']] = a[
+                ['B3_soft_prim_ampcal', 'B6_soft_prim_ampcal', 'B7_soft_prim_ampcal']].applymap(
+                lambda x: 1 if x > 0 else 0)
+            a[['B3_with_second_ampcal', 'B6_with_second_ampcal', 'B7_with_second_ampcal']] = a[
+                ['B3_soft_second_ampcal', 'B6_soft_second_ampcal', 'B7_soft_second_ampcal']].applymap(
+                lambda x: 1 if x > 0 else 0)
+        else:
+            a[['B3_with_prim_ampcal', 'B6_with_prim_ampcal', 'B7_with_prim_ampcal']] = a[
+                ['B3_prim_ampcal', 'B6_prim_ampcal', 'B7_prim_ampcal']].applymap(lambda x: 1 if x > 0 else 0)
+            a[['B3_with_second_ampcal', 'B6_with_second_ampcal', 'B7_with_second_ampcal']] = a[
+                ['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']].applymap(lambda x: 1 if x > 0 else 0)
+        a['B3_with_ampcal'] = a.B3_with_prim_ampcal + a.B3_with_second_ampcal
+        a['B6_with_ampcal'] = a.B6_with_prim_ampcal + a.B6_with_second_ampcal
+        a['B7_with_ampcal'] = a.B7_with_prim_ampcal + a.B7_with_second_ampcal
+        a[['B3_with_ampcal', 'B6_with_ampcal', 'B7_with_ampcal']] = a[
+            ['B3_with_ampcal', 'B6_with_ampcal', 'B7_with_ampcal']].applymap(lambda x: 1 if x > 0 else 0)
+        if source_softconst:
+            source_with_ampcal = a.query('kind_b3 !=1 and selAll == 1 and selSoftAll == 1').groupby(
+                ['source']
+            ).aggregate(
+                {'kind_b3': min, 'kind_b6': min, 'kind_b7': min, 'B3_with_prim_ampcal': sum, 'B6_with_prim_ampcal': sum,
+                 'B7_with_prim_ampcal': sum, 'B3_with_ampcal': sum, 'B6_with_ampcal': sum,
+                 'B7_with_ampcal': sum}).reset_index()
+        else:
+            source_with_ampcal = a.query('kind_b3 !=1 and selAll == 1').groupby(
+                ['source']
+            ).aggregate(
+                {'kind_b3': min, 'kind_b6': min, 'kind_b7': min, 'B3_with_prim_ampcal': sum, 'B6_with_prim_ampcal': sum,
+                 'B7_with_prim_ampcal': sum, 'B3_with_ampcal': sum, 'B6_with_ampcal': sum,
+                 'B7_with_ampcal': sum}).reset_index()
+        source_with_ampcal[
+            ['B3_with_prim_ampcal', 'B6_with_prim_ampcal', 'B7_with_prim_ampcal', 'B3_with_ampcal', 'B6_with_ampcal',
+             'B7_with_ampcal']] = source_with_ampcal[
+            ['B3_with_prim_ampcal', 'B6_with_prim_ampcal', 'B7_with_prim_ampcal', 'B3_with_ampcal', 'B6_with_ampcal',
+             'B7_with_ampcal']].applymap(lambda x: True if x > min_num_with_ampcal_sample else False)
+        return source_with_ampcal
+
+    def add_source_to_observe(self):
+        source_with_ampcal = self.get_source_with_ampcal(ampcal_softconst=True, source_softconst=False)
+        list_source_to_observe_b3 = source_with_ampcal.query(
+            '(kind_b3 == 3 and B3_with_ampcal) or kind_b3 == 4').source.tolist()
+        list_source_to_observe_b6 = source_with_ampcal.query(
+            '(kind_b6 == 3 and B6_with_ampcal) or kind_b6 == 4').source.tolist()
+        list_source_to_observe_b7 = source_with_ampcal.query(
+            '(kind_b7 == 3 and B7_with_ampcal) or kind_b7 == 4').source.tolist()
+        # list_source_to_observe_b9=source_with_ampcal.query('(kind_b9 == 3 and B9_with_ampcal) or kind_b9 == 4').source.tolist()
+        a = self.main_frame.copy()
+        a['B3_source_to_observe'] = a.apply(
+            lambda x: 1 if x['source'] in list_source_to_observe_b3 and x['selAll'] else 0, axis=1)
+        a['B6_source_to_observe'] = a.apply(
+            lambda x: 1 if x['source'] in list_source_to_observe_b6 and x['selAll'] else 0, axis=1)
+        a['B7_source_to_observe'] = a.apply(
+            lambda x: 1 if x['source'] in list_source_to_observe_b7 and x['selAll'] else 0, axis=1)
+        a['B3_soft_source_to_observe'] = a.apply(
+            lambda x: 1 if x['source'] in list_source_to_observe_b3 and x['selSoftAll'] else 0, axis=1)
+        a['B6_soft_source_to_observe'] = a.apply(
+            lambda x: 1 if x['source'] in list_source_to_observe_b6 and x['selSoftAll'] else 0, axis=1)
+        a['B7_soft_source_to_observe'] = a.apply(
+            lambda x: 1 if x['source'] in list_source_to_observe_b7 and x['selSoftAll'] else 0, axis=1)
+        available_source_to_observe = a.groupby(
+            ['timestamp']
+        ).aggregate({'B3_source_to_observe': sum, 'B6_source_to_observe': sum, 'B7_source_to_observe': sum,
+                     'B3_soft_source_to_observe': sum, 'B6_soft_source_to_observe': sum,
+                     'B7_soft_source_to_observe': sum}).reset_index()
+        self.main_frame=self.main_frame.merge(available_source_to_observe,on='timestamp')
 
     def get_observation_windows(self, soft_const: bool = False):
 
@@ -370,13 +441,13 @@ class FluxcalObs(object):
         """
         if soft_const:
             find_windows = self.main_frame.query(
-                'selSoftAlt == True and selSoftTran == True and selSun == True and selMoon == True'
+                'selSoftAll == True'
             ).groupby(
                 ['source', 'timestamp']
             ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}).sort_values(by=['source', 'timestamp'])
         else:
             find_windows = self.main_frame.query(
-                'selAlt == True and selTran == True and selSun == True and selMoon == True'
+                'selAll == True'
             ).groupby(
                 ['source','timestamp']
             ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}).sort_values(by=['source', 'timestamp'])
