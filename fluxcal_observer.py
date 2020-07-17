@@ -44,7 +44,7 @@ BAND_LIMS = {'B3': 217.45,
              'B7': 61.72,
              'B9': 31.46}
 
-JUP_RADIUS = 25. #I think SSR use 20.
+JUP_RADIUS = 25.  # I think SSR use 20.
 
 
 class FluxcalObs(object):
@@ -94,7 +94,8 @@ class FluxcalObs(object):
 
     def _create_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
-            kindofsource: list = [], skycoord_dict: Dict[str, SkyCoord] = None,debug: bool = False
+            kindofsource: list = None,
+            skycoord_dict: Dict[str, SkyCoord] = None, debug: bool = False
             ) -> pd.DataFrame:
         """Auxiliary method to create a `source` given a name and equatorial
         coordinates.
@@ -109,51 +110,40 @@ class FluxcalObs(object):
             Source's Declination as an Astropy Angle
         kindofsource: list
             List of integer for B3,B6,B7, and B9, giving the kind of source.
-            If the source not need to be observed in a band the integer should be 0.
-            If it is a secondary amplitude calibrator in a band the integer should be 2.
-            If it is a source already observed but with pending ampcal in a band the integer should be 3.
-            If it is source with pending observation in a band the integer should be 4.
-            For primary amp cal the integer is 1. By default if the list is empty the source
-            is assumed need to be observed in all bands so it is [4,4,4,4].
+            If the source not need to be observed in a band the integer should
+            be 0.
+            If it is a secondary amplitude calibrator in a band the integer
+            should be 2.
+            If it is a source already observed but with pending ampcal in a band
+            the integer should be 3.
+            If it is source with pending observation in a band the integer
+            should be 4.
+            For primary amp cal the integer is 1. By default if the list is
+            empty the source is assumed need to be observed in all bands so it
+            is [4,4,4,4].
         skycoord_dict : dict
             Optional 
-        debut : boolean
+        debug : boolean
 
         Returns
         -------
         DataFrame
         """
-        #Definition for the kind of source could be
-        # No need observation kind = 0
-        # Primary amplitude calibrator kind = 1
-        # Secondary amplitude calibrator kind = 2
-        # QSO need a secondary amplitud calibrator kind = 3
-        # QSO need a observation kind = 4.
 
         if name in SSO_ID_DICT.keys():
             coords = get_sso_coordinates(
                 name, self.epoch
             )
             # Primary amplitude calibrator kind = 1
-            list_kindofsource=[1,1,1,1]
+            kindofsource = [1, 1, 1, 1]
+
         else:
             ra = np.ones(self._steps) * ra
             dec = np.ones(self._steps) * dec
             obstime = self.sun.obstime
             coords = SkyCoord(ra, dec, frame='icrs', obstime=obstime)
-            if len(kindofsource) == 0:
-                # QSO need observation kind = 4
-                list_kindofsource = [4, 4, 4, 4]
-            else:
-                # Secondary amplitude calibrator kind = 2
-                list_kindofsource=[]
-                for k in kindofsource:
-                    if k < 5:
-                        list_kindofsource.append(k)
-                    else:
-                        list_kindofsource.append(4)
-                for i in range(len(list_kindofsource),4):
-                    list_kindofsource.append(4)
+            if kindofsource is None:
+                kindofsource = [4, 4, 4, 4]
 
         if skycoord_dict:
             df = self._build_dataframe(
@@ -161,15 +151,19 @@ class FluxcalObs(object):
         else:
             df = self._build_dataframe(
                 coords, {'Sun': self.sun, 'Moon': self.moon})
-
         self._prepare_coords_df(df, coords)
-        df[['kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']] = df.apply(lambda x: pd.Series(list_kindofsource[:4]), axis=1)
+
+        df[['kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']] = df.apply(
+            lambda x: pd.Series(kindofsource[:4]), axis=1)
         df['source'] = name
+
         if debug:
             return df
+
         else:
             cols = ['timestamp', 'source', 'lst', 'ha', 'dec', 'Sun', 'Moon',
-                    'closest_object', 'closest_distance', 'altitude','kind_b3','kind_b6','kind_b7','kind_b9']
+                    'closest_object', 'closest_distance', 'altitude', 'kind_b3',
+                    'kind_b6', 'kind_b7', 'kind_b9']
             return df[cols]
 
     @staticmethod
@@ -232,7 +226,8 @@ class FluxcalObs(object):
 
     def add_source(
             self, name: str, ra: Angle = None, dec: Angle = None,
-            kindofsource: list = [], skycoord_dict: Dict[str, SkyCoord] = None):
+            kindofsource: list = None,
+            skycoord_dict: Dict[str, SkyCoord] = None):
         """
 
         :param name:
@@ -240,27 +235,34 @@ class FluxcalObs(object):
         :param dec:
         :param kindofsource:
             List of integer for B3,B6,B7, and B9, giving the kind of source.
-            If the source not need to be observed in a band the integer should be 0.
-            If it is a secondary amplitude calibrator in a band the integer should be 2.
-            If it is a already source observed but with pending ampcal in a band the integer should be 3.
-            If it is source with pending observation in a band the integer should be 4.
-            For primary amp cal the integer is 1. By default if the list is empty the source
-            is assumed need to be observed in all bands so it is [4,4,4,4].
+            If the source not need to be observed in a band the integer should
+            be 0.
+            If it is a secondary amplitude calibrator in a band the integer
+            should be 2.
+            If it is a already source observed but with pending ampcal in a
+            band the integer should be 3.
+            If it is source with pending observation in a band the integer
+            should be 4.
+            For primary amp cal the integer is 1. By default if the list is
+            empty the source is assumed need to be observed in all bands so it
+            is [4,4,4,4].
         :param skycoord_dict:
         """
-        new_source = self._create_source(name, ra, dec, kindofsource, skycoord_dict)
+        new_source = self._create_source(
+            name, ra, dec, kindofsource, skycoord_dict)
 
         try:
-            self.main_frame = pd.concat([self.main_frame, new_source], axis=0,
-                                        sort=False, ignore_index=True)
+            self.main_frame = pd.concat(
+                [self.main_frame, new_source], axis=0, sort=False,
+                ignore_index=True)
             self.sources.append(name)
         except AssertionError:
             print('Can\'t add any more sources once the `apply_selector` '
                   'has been used')
 
     def apply_selector(
-            self, horizon: float = 25.,transit_limit: float =86., sun_limit: float = 21.,
-            moon_limit: float = 5.):
+            self, horizon: float = 25., transit_limit: float = 86.,
+            sun_limit: float = 21., moon_limit: float = 5.):
 
         """
 
@@ -269,28 +271,28 @@ class FluxcalObs(object):
         :param sun_limit:
         :param moon_limit:
         """
-        #From SSR the source selection to observe consider source over 24 deg in elevation (horizon)
-        # and below 87. deg in elevation (transit_limit)
-        horizon_sso=31. #From SSR is 30. deg in elevation
-        transit_limit_sso=79. #From SSR is 80. deg in elevation
-#        self.main_frame['selAlt'] = self.main_frame.altitude.apply(
-#            lambda x: x >= horizon)
+        # From SSR the source selection to observe consider source over 24 deg
+        # in elevation (horizon) and below 87. deg in elevation (transit_limit)
+        horizon_sso = 31.  # From SSR is 30. deg in elevation
+        transit_limit_sso = 79.  # From SSR is 80. deg in elevation
+
         self.main_frame['selAlt'] = self.main_frame.apply(
-            lambda x: x['altitude'] >= horizon if x['kind_b3'] !=1 else
-            x['altitude'] >= horizon_sso,axis=1
+            lambda x: x['altitude'] >= horizon if x['kind_b3'] != 1 else
+            x['altitude'] >= horizon_sso, axis=1
             )
-#        self.main_frame['selTran'] = self.main_frame.altitude.apply(
-#            lambda x: x <= transit_limit)
+
         self.main_frame['selTran'] = self.main_frame.apply(
             lambda x: x['altitude'] <= transit_limit if x['kind_b3'] != 1 else
-            x['altitude'] <= transit_limit_sso,axis=1
+            x['altitude'] <= transit_limit_sso, axis=1
             )
         self.main_frame['selSun'] = self.main_frame.Sun.apply(
             lambda x: x >= sun_limit * 3600)
         self.main_frame['selMoon'] = self.main_frame.Moon.apply(
             lambda x: x >= moon_limit * 3600)
-        self.main_frame['selAll']=self.main_frame.apply(
-            lambda x: True if x['selAlt'] and x['selTran'] and x['selSun'] and x['selMoon'] else False,axis=1)
+        self.main_frame['selAll'] = self.main_frame.apply(
+            lambda x: True if (x['selAlt'] + x['selTran'] + x['selSun'] +
+                               x['selMoon']) else False,
+            axis=1)
 
         band_columns = ['Band3', 'Band6', 'Band7', 'Band9']
 
@@ -298,74 +300,121 @@ class FluxcalObs(object):
             lambda x: band_limits(x))
 
     def apply_soft_selector(
-            self, horizon: float = 40.,transit_limit: float =80.):
+            self, horizon: float = 40., transit_limit: float = 80.):
 
         """
+        We can include soft constraints selection to consider source over 40 deg
+        in elevation (horizon) and below 80. deg in elevation (transit_limit).
+        Specially for secondary amp. cal. Aditionally for those source at high
+        declination, abs(DEC-ALMA_LATITUDE) >= 49 or max elevation of 41 deg we
+        consider range of time of +/- 1 hour from the transit as the best
+        observation windows.
 
         :param horizon:
         :param transit_limit:
         """
-        #We can include soft constraints selection to consider source over 40 deg in elevation (horizon)
-        # and below 80. deg in elevation (transit_limit). Specially for secondary amp. cal.
-        #Aditionally for those source at high declination, abs(DEC-ALMA_LATITUDE) >= 49
-        # or max elevation of 41 deg we consider range of time of +/- 1 hour from the
-        # transit as the best observation windows.
-        horizon_sso=40. #From SSR is 30. deg in elevation
-        transit_limit_sso=79. #From SSR is 80. deg in elevation
-        #horizon=40. # or at least 30. the same as SSOs
-        #transit_limit=79. # The same as SSOs
+
+        horizon_sso = 40.  # From SSR is 30. deg in elevation
+        transit_limit_sso = 79.  # From SSR is 80. deg in elevation
+
         self.main_frame['selSoftAlt'] = self.main_frame.apply(
-            lambda x: abs(x['ha']) <= 1.0  if abs(x['dec']-ALMA_COORD['lat']) >= 49. and x['kind_b3'] !=1 else
+            lambda x: abs(x['ha']) <= 1.0 if
+            abs(x['dec']-ALMA_COORD['lat']) >= 49. and x['kind_b3'] != 1 else
             x['altitude'] >= horizon if x['kind_b3'] != 1 else
-            x['altitude'] >= horizon_sso,axis=1
+            x['altitude'] >= horizon_sso, axis=1
             )
         self.main_frame['selSoftTran'] = self.main_frame.apply(
-            lambda x: x['altitude'] <= transit_limit  if x['kind_b3'] !=1 else
-            x['altitude'] <= transit_limit_sso,axis=1
+            lambda x: x['altitude'] <= transit_limit if x['kind_b3'] != 1 else
+            x['altitude'] <= transit_limit_sso, axis=1
             )
-        self.main_frame['selSoftAll']=self.main_frame.apply(lambda x: True if x['selSoftAlt'] == True and x['selSoftTran'] == True and x['selAll'] == True else False,axis=1)
-
+        self.main_frame['selSoftAll'] = self.main_frame.apply(
+            lambda x: True if x['selSoftAlt'] and x['selSoftTran'] and
+            x['selAll'] else False, axis=1)
 
     def add_ampcal_condition(self):
-        #To run this procedure we should first run apply_selector
-        # and apply_soft_selector. We need to include the case when
-        # one or both procedures are not applied to the data.
-        caldata_hardconst = self.main_frame.query(
-            'selAll == True'
-        ).copy()
-        caldata_hardconst[['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']] = caldata_hardconst[
-            ['kind_b3', 'kind_b6', 'kind_b7']].applymap(lambda x: 1 if x == 2 else 0)
+        """
+        To run this procedure we should first run apply_selector and
+        apply_soft_selector. We need to include the case when one or both
+        procedures are not applied to the data.
+        :return:
+        """
+
+        caldata_hardconst = self.main_frame.query('selAll == True').copy()
+        add_cols = ['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']
+
+        caldata_hardconst[add_cols] = caldata_hardconst[
+            ['kind_b3', 'kind_b6', 'kind_b7']
+        ].applymap(lambda x: 1 if x == 2 else 0)
+
         caldata_softconst = caldata_hardconst.query(
-            'selSoftAll == True'
-        ).copy()
-        #Primary amplitud calibrator
-        primary_ampcal_availability_hardconst=caldata_hardconst.query('kind_b3 == 1').groupby(
-            ['timestamp']
-        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
-        ).reset_index().rename(columns={'Band3':'B3_prim_ampcal','Band6':'B6_prim_ampcal','Band7':'B7_prim_ampcal'})
+            'selSoftAll == True').copy()
 
-        primary_ampcal_availability_softconst=caldata_softconst.query('kind_b3 == 1').groupby(
+        # Primary amplitude calibrator
+        primary_ampcal_availability_hardconst = caldata_hardconst.query(
+            'kind_b3 == 1'
+        ).groupby(
             ['timestamp']
-        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
-        ).reset_index().rename(columns={'Band3':'B3_soft_prim_ampcal','Band6':'B6_soft_prim_ampcal','Band7':'B7_soft_prim_ampcal'})
+        ).aggregate(
+            {'Band3': sum, 'Band6': sum, 'Band7': sum}
+        ).reset_index(
+        ).rename(
+            columns={'Band3': 'B3_prim_ampcal', 'Band6': 'B6_prim_ampcal',
+                     'Band7': 'B7_prim_ampcal'}
+        )
 
-        #Secondary amplitud calibrator
-        secondary_ampcal_availability_hardconst=caldata_hardconst.query('kind_b3 != 1').groupby(
+        primary_ampcal_availability_softconst = caldata_softconst.query(
+            'kind_b3 == 1'
+        ).groupby(
             ['timestamp']
-        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+        ).aggregate(
+            {'Band3': sum, 'Band6': sum, 'Band7': sum}
+        ).reset_index(
+        ).rename(
+            columns={'Band3': 'B3_soft_prim_ampcal',
+                     'Band6': 'B6_soft_prim_ampcal',
+                     'Band7': 'B7_soft_prim_ampcal'}
+        )
+
+        # Secondary amplitude calibrator
+        secondary_ampcal_availability_hardconst = caldata_hardconst.query(
+            'kind_b3 != 1'
+        ).groupby(
+            ['timestamp']
+        ).aggregate(
+            {'B3_second_ampcal': sum, 'B6_second_ampcal': sum,
+             'B7_second_ampcal': sum}
         ).reset_index()
-        secondary_ampcal_availability_softconst=caldata_softconst.query('kind_b3 != 1').groupby(
+
+        secondary_ampcal_availability_softconst = caldata_softconst.query(
+            'kind_b3 != 1'
+        ).groupby(
             ['timestamp']
-        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
-        ).reset_index().rename(columns={'B3_second_ampcal':'B3_soft_second_ampcal','B6_second_ampcal':'B6_soft_second_ampcal','B7_second_ampcal':'B7_soft_second_ampcal'})
+        ).aggregate(
+            {'B3_second_ampcal': sum, 'B6_second_ampcal': sum,
+             'B7_second_ampcal': sum}
+        ).reset_index(
+        ).rename(
+            columns={'B3_second_ampcal': 'B3_soft_second_ampcal',
+                     'B6_second_ampcal': 'B6_soft_second_ampcal',
+                     'B7_second_ampcal': 'B7_soft_second_ampcal'}
+        )
 
-        self.main_frame=self.main_frame.merge(primary_ampcal_availability_hardconst,on='timestamp',how='left').fillna(0.0)
-        self.main_frame=self.main_frame.merge(primary_ampcal_availability_softconst,on='timestamp',how='left').fillna(0.0)
-        self.main_frame=self.main_frame.merge(secondary_ampcal_availability_hardconst,on='timestamp',how='left').fillna(0.0)
-        self.main_frame=self.main_frame.merge(secondary_ampcal_availability_softconst,on='timestamp',how='left').fillna(0.0)
+        self.main_frame = self.main_frame.merge(
+            primary_ampcal_availability_hardconst, on='timestamp', how='left'
+        ).merge(
+            primary_ampcal_availability_softconst, on='timestamp', how='left'
+        ).merge(
+            secondary_ampcal_availability_hardconst, on='timestamp', how='left'
+        ).merge(
+            secondary_ampcal_availability_softconst, on='timestamp', how='left'
+        ).fillna(
+            0.0
+        )
 
-    def get_source_with_ampcal(self,ampcal_softconst: bool = True, source_softconst: bool = True,
-                               min_num_with_ampcal_sample: int = 5):
+    def get_source_with_ampcal(
+            self, ampcal_softconst: bool = True, source_softconst: bool = True,
+            min_num_with_ampcal_sample: int = 5):
+
         a = self.main_frame.copy()
         if ampcal_softconst:
             a[['B3_with_prim_ampcal', 'B6_with_prim_ampcal', 'B7_with_prim_ampcal']] = a[
@@ -488,6 +537,7 @@ class FluxcalObs(object):
         windows_b7 = windows_b7.merge(kind_source[['source', 'kind_b7']].rename(columns={'kind_b7': 'kind'}),
                                       on='source')
         return windows.append(windows_b7)
+
 
 def calc_ha(ra: float, lst: float) -> float:
     """

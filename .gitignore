@@ -210,3 +210,5 @@ dmypy.json
 .idea/vcs.xml
 /datatemplate.csv
 .vscode
+/.idea/codestream.xml
+tests/
