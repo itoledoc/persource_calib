@@ -153,8 +153,9 @@ class FluxcalObs(object):
                 coords, {'Sun': self.sun, 'Moon': self.moon})
         self._prepare_coords_df(df, coords)
 
+        # check that kindofsource
         df[['kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']] = df.apply(
-            lambda x: pd.Series(kindofsource[:4]), axis=1)
+            lambda x: pd.Series(kindofsource), axis=1)
         df['source'] = name
 
         if debug:
@@ -336,6 +337,12 @@ class FluxcalObs(object):
         To run this procedure we should first run apply_selector and
         apply_soft_selector. We need to include the case when one or both
         procedures are not applied to the data.
+
+        BX_prim_ampcal: es numero de primary ampcals en esa banda en ese momento
+        y que cumplen con el hard
+        BX_soft_prim_ampcal: the same pero con criterios de preferencia
+        BX_second_ampcal: idem pero secondary number
+        BX_soft_second_ampcal: idem pero ademas usando preferencia
         :return:
         """
 
@@ -455,6 +462,12 @@ class FluxcalObs(object):
         return source_with_ampcal
 
     def add_source_to_observe(self):
+        """
+        BX_sources_to_observe: es numero de primary ampcals en esa banda en ese momento
+        y que cumplen con el hard
+        BX_sources_soft_to_observe: the same pero con criterios de preferencia
+        :return:
+        """
         source_with_ampcal = self.get_source_with_ampcal(ampcal_softconst=True, source_softconst=False)
         list_source_to_observe_b3 = source_with_ampcal.query(
             '(kind_b3 == 3 and B3_with_ampcal) or kind_b3 == 4').source.tolist()
