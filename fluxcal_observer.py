@@ -72,7 +72,7 @@ class FluxcalObs(object):
              self._create_source('Neptune')], axis=0, sort=False,
             ignore_index=True)
         self.sources = ['Mars', 'Uranus', 'Neptune']
-
+        self.simulation_frame = None
         self._io_skycoord = get_sso_coordinates('Io', self.epoch)
         self._europa_skycoord = get_sso_coordinates('Europa', self.epoch)
         self._ganymede_skycoord = get_sso_coordinates('Ganymede', self.epoch)
@@ -122,13 +122,19 @@ class FluxcalObs(object):
             empty the source is assumed need to be observed in all bands so it
             is [4,4,4,4].
         skycoord_dict : dict
-            Optional 
+            Optional
         debug : boolean
 
         Returns
         -------
         DataFrame
         """
+        # Definition for the kind of source could be
+        # No need observation kind = 0
+        # Primary amplitude calibrator kind = 1
+        # Secondary amplitude calibrator kind = 2
+        # QSO need a secondary amplitud calibrator kind = 3
+        # QSO need a observation kind = 4.
 
         if name in SSO_ID_DICT.keys():
             coords = get_sso_coordinates(
@@ -332,97 +338,124 @@ class FluxcalObs(object):
             lambda x: True if x['selSoftAlt'] and x['selSoftTran'] and
             x['selAll'] else False, axis=1)
 
-    def add_ampcal_condition(self):
-        """
-        To run this procedure we should first run apply_selector and
-        apply_soft_selector. We need to include the case when one or both
-        procedures are not applied to the data.
-
-        BX_prim_ampcal: es numero de primary ampcals en esa banda en ese momento
-        y que cumplen con el hard
-        BX_soft_prim_ampcal: the same pero con criterios de preferencia
-        BX_second_ampcal: idem pero secondary number
-        BX_soft_second_ampcal: idem pero ademas usando preferencia
-        :return:
-        """
-
-        caldata_hardconst = self.main_frame.query('selAll == True').copy()
-        add_cols = ['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']
-
-        caldata_hardconst[add_cols] = caldata_hardconst[
-            ['kind_b3', 'kind_b6', 'kind_b7']
-        ].applymap(lambda x: 1 if x == 2 else 0)
-
+    def ampcal_condition(self, simulate: bool = False):
+        # To run this procedure we should first run apply_selector
+        # and apply_soft_selector. We need to include the case when
+        # one or both procedures are not applied to the data.
+        if simulate:
+            caldata_hardconst = self.simulation_frame.query(
+                'selAll == True'
+            ).copy()
+        else:
+            caldata_hardconst = self.main_frame.query(
+                'selAll == True'
+            ).copy()
+        caldata_hardconst[['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']] = caldata_hardconst[
+            ['kind_b3', 'kind_b6', 'kind_b7']].applymap(lambda x: 1 if x == 2 else 0)
         caldata_softconst = caldata_hardconst.query(
-            'selSoftAll == True').copy()
-
-        # Primary amplitude calibrator
-        primary_ampcal_availability_hardconst = caldata_hardconst.query(
-            'kind_b3 == 1'
-        ).groupby(
+            'selSoftAll == True'
+        ).copy()
+        # Primary amplitud calibrator
+        primary_ampcal_availability_hardconst = caldata_hardconst.query('kind_b3 == 1').groupby(
             ['timestamp']
-        ).aggregate(
-            {'Band3': sum, 'Band6': sum, 'Band7': sum}
-        ).reset_index(
-        ).rename(
-            columns={'Band3': 'B3_prim_ampcal', 'Band6': 'B6_prim_ampcal',
-                     'Band7': 'B7_prim_ampcal'}
-        )
+        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
+                    ).reset_index().rename(
+            columns={'Band3': 'B3_prim_ampcal', 'Band6': 'B6_prim_ampcal', 'Band7': 'B7_prim_ampcal'})
 
-        primary_ampcal_availability_softconst = caldata_softconst.query(
-            'kind_b3 == 1'
-        ).groupby(
+        primary_ampcal_availability_softconst = caldata_softconst.query('kind_b3 == 1').groupby(
             ['timestamp']
-        ).aggregate(
-            {'Band3': sum, 'Band6': sum, 'Band7': sum}
-        ).reset_index(
-        ).rename(
-            columns={'Band3': 'B3_soft_prim_ampcal',
-                     'Band6': 'B6_soft_prim_ampcal',
-                     'Band7': 'B7_soft_prim_ampcal'}
-        )
+        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
+                    ).reset_index().rename(
+            columns={'Band3': 'B3_soft_prim_ampcal', 'Band6': 'B6_soft_prim_ampcal', 'Band7': 'B7_soft_prim_ampcal'})
 
-        # Secondary amplitude calibrator
-        secondary_ampcal_availability_hardconst = caldata_hardconst.query(
-            'kind_b3 != 1'
-        ).groupby(
+        # Secondary amplitud calibrator
+        secondary_ampcal_availability_hardconst = caldata_hardconst.query('kind_b3 != 1').groupby(
             ['timestamp']
-        ).aggregate(
-            {'B3_second_ampcal': sum, 'B6_second_ampcal': sum,
-             'B7_second_ampcal': sum}
-        ).reset_index()
-
-        secondary_ampcal_availability_softconst = caldata_softconst.query(
-            'kind_b3 != 1'
-        ).groupby(
+        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+                    ).reset_index()
+        secondary_ampcal_availability_softconst = caldata_softconst.query('kind_b3 != 1').groupby(
             ['timestamp']
-        ).aggregate(
-            {'B3_second_ampcal': sum, 'B6_second_ampcal': sum,
-             'B7_second_ampcal': sum}
-        ).reset_index(
-        ).rename(
-            columns={'B3_second_ampcal': 'B3_soft_second_ampcal',
-                     'B6_second_ampcal': 'B6_soft_second_ampcal',
-                     'B7_second_ampcal': 'B7_soft_second_ampcal'}
-        )
+        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+                    ).reset_index().rename(
+            columns={'B3_second_ampcal': 'B3_soft_second_ampcal', 'B6_second_ampcal': 'B6_soft_second_ampcal',
+                     'B7_second_ampcal': 'B7_soft_second_ampcal'})
+        ampcal_availability = primary_ampcal_availability_hardconst.copy()
+        ampcal_availability = ampcal_availability.merge(primary_ampcal_availability_softconst, on='timestamp',
+                                                        how='outer').fillna(0.0)
+        ampcal_availability = ampcal_availability.merge(secondary_ampcal_availability_hardconst, on='timestamp',
+                                                        how='outer').fillna(0.0)
+        ampcal_availability = ampcal_availability.merge(secondary_ampcal_availability_softconst, on='timestamp',
+                                                        how='outer').fillna(0.0)
+        return ampcal_availability
 
-        self.main_frame = self.main_frame.merge(
-            primary_ampcal_availability_hardconst, on='timestamp', how='left'
-        ).merge(
-            primary_ampcal_availability_softconst, on='timestamp', how='left'
-        ).merge(
-            secondary_ampcal_availability_hardconst, on='timestamp', how='left'
-        ).merge(
-            secondary_ampcal_availability_softconst, on='timestamp', how='left'
-        ).fillna(
-            0.0
-        )
+    def add_ampcal_condition(self, simulate: bool = False):
+        # To run this procedure we should first run apply_selector
+        # and apply_soft_selector. We need to include the case when
+        # one or both procedures are not applied to the data.
+        if simulate:
+            caldata_hardconst = self.simulation_frame.query(
+                'selAll == True'
+            ).copy()
+        else:
+            caldata_hardconst = self.main_frame.query(
+                'selAll == True'
+            ).copy()
+        caldata_hardconst[['B3_second_ampcal', 'B6_second_ampcal', 'B7_second_ampcal']] = caldata_hardconst[
+            ['kind_b3', 'kind_b6', 'kind_b7']].applymap(lambda x: 1 if x == 2 else 0)
+        caldata_softconst = caldata_hardconst.query(
+            'selSoftAll == True'
+        ).copy()
+        # Primary amplitud calibrator
+        primary_ampcal_availability_hardconst = caldata_hardconst.query('kind_b3 == 1').groupby(
+            ['timestamp']
+        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
+                    ).reset_index().rename(
+            columns={'Band3': 'B3_prim_ampcal', 'Band6': 'B6_prim_ampcal', 'Band7': 'B7_prim_ampcal'})
 
-    def get_source_with_ampcal(
-            self, ampcal_softconst: bool = True, source_softconst: bool = True,
-            min_num_with_ampcal_sample: int = 5):
+        primary_ampcal_availability_softconst = caldata_softconst.query('kind_b3 == 1').groupby(
+            ['timestamp']
+        ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}
+                    ).reset_index().rename(
+            columns={'Band3': 'B3_soft_prim_ampcal', 'Band6': 'B6_soft_prim_ampcal', 'Band7': 'B7_soft_prim_ampcal'})
 
-        a = self.main_frame.copy()
+        # Secondary amplitud calibrator
+        secondary_ampcal_availability_hardconst = caldata_hardconst.query('kind_b3 != 1').groupby(
+            ['timestamp']
+        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+                    ).reset_index()
+        secondary_ampcal_availability_softconst = caldata_softconst.query('kind_b3 != 1').groupby(
+            ['timestamp']
+        ).aggregate({'B3_second_ampcal': sum, 'B6_second_ampcal': sum, 'B7_second_ampcal': sum}
+                    ).reset_index().rename(
+            columns={'B3_second_ampcal': 'B3_soft_second_ampcal', 'B6_second_ampcal': 'B6_soft_second_ampcal',
+                     'B7_second_ampcal': 'B7_soft_second_ampcal'})
+
+        if simulate:
+            self.simulation_frame = self.simulation_frame.merge(primary_ampcal_availability_hardconst, on='timestamp',
+                                                                how='left').fillna(0.0)
+            self.simulation_frame = self.simulation_frame.merge(primary_ampcal_availability_softconst, on='timestamp',
+                                                                how='left').fillna(0.0)
+            self.simulation_frame = self.simulation_frame.merge(secondary_ampcal_availability_hardconst, on='timestamp',
+                                                                how='left').fillna(0.0)
+            self.simulation_frame = self.simulation_frame.merge(secondary_ampcal_availability_softconst, on='timestamp',
+                                                                how='left').fillna(0.0)
+        else:
+            self.main_frame = self.main_frame.merge(primary_ampcal_availability_hardconst, on='timestamp',
+                                                    how='left').fillna(0.0)
+            self.main_frame = self.main_frame.merge(primary_ampcal_availability_softconst, on='timestamp',
+                                                    how='left').fillna(0.0)
+            self.main_frame = self.main_frame.merge(secondary_ampcal_availability_hardconst, on='timestamp',
+                                                    how='left').fillna(0.0)
+            self.main_frame = self.main_frame.merge(secondary_ampcal_availability_softconst, on='timestamp',
+                                                    how='left').fillna(0.0)
+
+    def get_source_with_ampcal(self, ampcal_softconst: bool = True, source_softconst: bool = True,
+                               min_num_with_ampcal_sample: int = 4, simulate: bool = False):
+        if simulate:
+            a = self.simulation_frame.copy()
+        else:
+            a = self.main_frame.copy()
+
         if ampcal_softconst:
             a[['B3_with_prim_ampcal', 'B6_with_prim_ampcal', 'B7_with_prim_ampcal']] = a[
                 ['B3_soft_prim_ampcal', 'B6_soft_prim_ampcal', 'B7_soft_prim_ampcal']].applymap(
@@ -461,22 +494,30 @@ class FluxcalObs(object):
              'B7_with_ampcal']].applymap(lambda x: True if x > min_num_with_ampcal_sample else False)
         return source_with_ampcal
 
-    def add_source_to_observe(self):
-        """
-        BX_sources_to_observe: es numero de primary ampcals en esa banda en ese momento
-        y que cumplen con el hard
-        BX_sources_soft_to_observe: the same pero con criterios de preferencia
-        :return:
-        """
-        source_with_ampcal = self.get_source_with_ampcal(ampcal_softconst=True, source_softconst=False)
-        list_source_to_observe_b3 = source_with_ampcal.query(
-            '(kind_b3 == 3 and B3_with_ampcal) or kind_b3 == 4').source.tolist()
-        list_source_to_observe_b6 = source_with_ampcal.query(
-            '(kind_b6 == 3 and B6_with_ampcal) or kind_b6 == 4').source.tolist()
-        list_source_to_observe_b7 = source_with_ampcal.query(
-            '(kind_b7 == 3 and B7_with_ampcal) or kind_b7 == 4').source.tolist()
+    def source_to_observe(self, simulate: bool = False, list_source_to_observe: Dict[str, list] = {}):
+        # Example of list_source_to_observe is {'b3':["s1","s2","s3"]}
+        if simulate:
+            a = self.simulation_frame.copy()
+        else:
+            a = self.main_frame.copy()
+        # source_with_ampcal = self.get_source_with_ampcal(ampcal_softconst=True, source_softconst=False,simulate = simulate)
+        if 'b3' in list_source_to_observe:
+            list_source_to_observe_b3 = list_source_to_observe['b3']
+        else:
+            list_source_to_observe_b3 = a.query(
+                'kind_b3 == 3 or kind_b3 == 4').source.tolist()
+        if 'b6' in list_source_to_observe:
+            list_source_to_observe_b6 = list_source_to_observe['b6']
+        else:
+            list_source_to_observe_b6 = a.query(
+                'kind_b6 == 3 or kind_b6 == 4').source.tolist()
+        if 'b7' in list_source_to_observe:
+            list_source_to_observe_b7 = list_source_to_observe['b7']
+        else:
+            list_source_to_observe_b7 = a.query(
+                'kind_b7 == 3 or kind_b7 == 4').source.tolist()
         # list_source_to_observe_b9=source_with_ampcal.query('(kind_b9 == 3 and B9_with_ampcal) or kind_b9 == 4').source.tolist()
-        a = self.main_frame.copy()
+
         a['B3_source_to_observe'] = a.apply(
             lambda x: 1 if x['source'] in list_source_to_observe_b3 and x['selAll'] else 0, axis=1)
         a['B6_source_to_observe'] = a.apply(
@@ -494,32 +535,271 @@ class FluxcalObs(object):
         ).aggregate({'B3_source_to_observe': sum, 'B6_source_to_observe': sum, 'B7_source_to_observe': sum,
                      'B3_soft_source_to_observe': sum, 'B6_soft_source_to_observe': sum,
                      'B7_soft_source_to_observe': sum}).reset_index()
-        self.main_frame=self.main_frame.merge(available_source_to_observe,on='timestamp')
+        return available_source_to_observe
 
-    def get_observation_windows(self, soft_const: bool = False):
+    def add_source_to_observe(self, simulate: bool = False):
+        available_source_to_observe = self.source_to_observe(simulate=simulate)
+        if simulate:
+            self.simulation_frame = self.simulation_frame.merge(available_source_to_observe, on='timestamp',
+                                                                how='left').fillna(0.0)
+        else:
+            self.main_frame = self.main_frame.merge(available_source_to_observe, on='timestamp', how='left').fillna(0.0)
+
+    def create_simulation(self):
+        self.simulation_frame = self.main_frame.copy()
+
+    def change_kind_in_simulation(self, source_with_changes_dict: Dict[int, Dict] = {}):
+        # Example for source_with_changes_dict { 2: {'kind_b3': ["s1","s2","s3"]}}
+        for k in source_with_changes_dict:
+            for b in source_with_changes_dict[k]:
+                list_of_source = source_with_changes_dict[k][b]
+                self.simulation_frame[[b]] = self.simulation_frame.apply(
+                    lambda x: k if x['source'] in list_of_source else x[b], axis=1)
+
+    def observing_plan_max_peak(self, simulate: bool = False, peak_uncertainty: int = 0, min_timestamp=None,
+                                delta_timestamp=pd.Timedelta('1day')):
+        # makes observing plan grouping sources. Higher priority '0' is the group
+        # with more sources that can be calibrated (with either primary or secondary)
+        observe_timestamp = {'timestamp': [], 'peak_obs_value': [], 'final_peak_obs': [], 'num_obs': [],
+                             'conditions': [], 'source_list': [], 'prim_ampcal_list': [], 'second_ampcal_list': []}
+        if simulate:
+            a = self.simulation_frame.copy()
+        else:
+            a = self.main_frame.copy()
+        if min_timestamp == None:
+            init_timestamp = a.timestamp.min() - pd.Timedelta('1s')
+        else:
+            init_timestamp = min_timestamp
+        last_timestamp = init_timestamp + delta_timestamp
+        list_source_to_observe = a.query(
+            'kind_b3 == 3  or kind_b3 == 4').source.unique().tolist()
+        list_source_all = list_source_to_observe
+        ampcal_cond = self.ampcal_condition(simulate=simulate).copy()
+        ampcal_list_timestamp = ampcal_cond.query(
+            '(B3_soft_prim_ampcal > 0 or B3_soft_second_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp').timestamp.tolist()
+        prim_ampcal_list_timestamp = ampcal_cond.query('B3_soft_prim_ampcal > 0').timestamp.tolist()
+        source_to_observe = self.source_to_observe(simulate=simulate)
+        max_value = 1
+        # data=source_to_observe.query('timestamp in @ampcal_list_timestamp')
+        # max_value=data[['B3_soft_source_to_observe']].max().values[0]
+        # timestamplist=data.query('B3_soft_source_to_observe == @max_value').timestamp.tolist()[:1]
+        # observed_list=a.query('timestamp in @timestamplist and source in @list_source_to_observe and selAll == True').source.unique().tolist()
+        # listaux = [s for s in list_source_to_observe if s not in observed_list]
+        # list_source_to_observe=listaux
+        # print(timestamplist,max_value)
+        # observe_timestamp['timestamp'].append(timestamplist[0])
+        # observe_timestamp['max_obs_value'].append(max_value)
+        # observe_timestamp['num_obs'].append(len(observed_list))
+        # observe_timestamp['conditions'].append("optimal")
+        # observe_timestamp['source_list'].append(observed_list)
+
+        while (max_value > 0):
+            # source_to_observe=self.source_to_observe(simulate = simulate,list_source_to_observe={'b3':list_source_to_observe})
+            data = source_to_observe.query('timestamp in @ampcal_list_timestamp')
+            max_value = data[['B3_soft_source_to_observe']].max().values[0]
+            if max_value > 0:
+                value = max_value - peak_uncertainty
+                timestamplist = data.query('B3_soft_source_to_observe >= @value').timestamp.tolist()[:1]
+                if timestamplist[0] in prim_ampcal_list_timestamp:
+                    observe_timestamp['conditions'].append("optimal prim_ampcal")
+                else:
+                    observe_timestamp['conditions'].append("optimal second_ampcal")
+            else:
+                max_value = data[['B3_source_to_observe']].max().values[0]
+                if max_value > 0:
+                    if max_value > peak_uncertainty:
+                        value = max_value - peak_uncertainty
+                    else:
+                        value = max_value
+                    timestamplist = data.query('B3_source_to_observe >= @value').timestamp.tolist()[:1]
+                    if timestamplist[0] in prim_ampcal_list_timestamp:
+                        observe_timestamp['conditions'].append("non optimal prim_ampcal")
+                    else:
+                        observe_timestamp['conditions'].append("non optimal second_ampcal")
+                else:
+                    data = source_to_observe.query('timestamp > @init_timestamp and timestamp <= @last_timestamp')
+                    max_value = data[['B3_source_to_observe']].max().values[0]
+                    if max_value > peak_uncertainty:
+                        value = max_value - peak_uncertainty
+                    else:
+                        value = max_value
+                    timestamplist = data.query('B3_source_to_observe >= @value').timestamp.tolist()[:1]
+                    if max_value > 0:
+                        observe_timestamp['conditions'].append("non ampcal")
+                    else:
+                        observe_timestamp['conditions'].append("non observable")
+
+            observed_list = a.query(
+                'timestamp in @timestamplist and source in @list_source_to_observe and selAll == True').source.unique().tolist()
+            listaux = [s for s in list_source_to_observe if s not in observed_list]
+            list_source_to_observe = listaux
+            all_observed_list = a.query(
+                'timestamp in @timestamplist and source in @list_source_all and selSoftAll == True').source.unique().tolist()
+            for s in observed_list:
+                if s not in all_observed_list:
+                    all_observed_list.append(s)
+            observe_timestamp['timestamp'].append(timestamplist[0])
+            observe_timestamp['peak_obs_value'].append(max_value)
+            observe_timestamp['final_peak_obs'].append(len(observed_list))
+            observe_timestamp['num_obs'].append(len(all_observed_list))
+            prim_ampcal_list = a.query(
+                'kind_b3 == 1 and timestamp == @timestamplist[0] and selSoftAll and Band3').source.unique().tolist()
+            second_ampcal_list = a.query(
+                'kind_b3 == 2 and timestamp == @timestamplist[0] and selSoftAll').source.unique().tolist()
+            observe_timestamp['prim_ampcal_list'].append(prim_ampcal_list)
+            observe_timestamp['second_ampcal_list'].append(second_ampcal_list)
+            print("Peak value: %d" % (max_value))
+            print("Observed list: %s" % (all_observed_list))
+            print("Source to observe: %s" % (list_source_to_observe))
+            print("Timestamp: %s" % (timestamplist[0]))
+
+            if max_value > 0:
+                if observe_timestamp['conditions'][-1] == "non ampcal":
+                    observe_timestamp['source_list'].append(observed_list)
+                else:
+                    observe_timestamp['source_list'].append(all_observed_list)
+                source_to_observe = self.source_to_observe(simulate=simulate,
+                                                           list_source_to_observe={'b3': list_source_to_observe})
+            else:
+                observe_timestamp['source_list'].append(list_source_to_observe)
+        observing_plan = pd.DataFrame(observe_timestamp,
+                                      columns=['timestamp', 'peak_obs_value', 'final_peak_obs', 'num_obs', 'conditions',
+                                               'source_list', 'prim_ampcal_list', 'second_ampcal_list']).sort_values(
+            by='timestamp')
+        return observing_plan
+
+    def observing_plan_by_source_peak(self, simulate: bool = False, peak_uncertainty: int = 0, min_timestamp=None,
+                                      delta_timestamp=pd.Timedelta('1day')):
+        # makes observing plan grouping sources. Higher priority '0' is the group
+        # with more sources that can be calibrated (with either primary or secondary)
+        # observe_timestamp={'timestamp':[],'peak_obs_value':[],'final_peak_obs':[],'num_obs':[],'conditions':[],'source_list':[],'prim_ampcal_list':[],'second_ampcal_list':[]}
+        if simulate:
+            a = self.simulation_frame.copy()
+        else:
+            a = self.main_frame.copy()
+        if min_timestamp == None:
+            init_timestamp = a.timestamp.min() - pd.Timedelta('1s')
+        else:
+            init_timestamp = min_timestamp
+        last_timestamp = init_timestamp + delta_timestamp
+
+        # ampcal_cond: Numbers of ampcal available by timestamp
+        ampcal_cond = caldata.ampcal_condition(simulate=simulate).copy()
+        # Add ampcal_cond to the main frame
+        a = a.merge(ampcal_cond, on='timestamp', how='left').fillna(0.0)
+
+        # ampcal_list_timestamp=ampcal_cond.query('(B3_soft_prim_ampcal > 0 or B3_soft_second_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp').timestamp.tolist()
+        # Timestamps with available primary ampcal
+        prim_ampcal_list_timestamp = ampcal_cond.query('B3_soft_prim_ampcal > 0').timestamp.tolist()
+
+        # source_to_observe: Numbers of source needing observations available by timestamp
+        source_to_observe = caldata.source_to_observe(simulate=simulate)
+        # Add source_to_observe to the main frame
+        a = a.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
+
+        # Select from the main frame source nedding observations in B3 and available from SSR conditions
+        a_source_to_observe = a.query(
+            '(kind_b3 == 3  or kind_b3 == 4) and selAll == True'
+        )
+        # Filter those timestamp with an available ampcal in optimal conditions and within the time windows defined
+        a_ampcal_cond = a_source_to_observe.query(
+            '(B3_soft_prim_ampcal > 0 or B3_soft_second_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp')
+
+        # Select from the filtered main frame those timestamp with the source observable in optimal conditions
+        a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+        # Got the peak of sources available to be observed with calibrations for each source observility time
+        # window with optimal conditions
+        a_max_counts = a_optimal_cond.loc[a_optimal_cond.groupby(['source'])['B3_soft_source_to_observe'].idxmax()]
+        # Filter the first timestamp by source in time
+        a_timestamp = a_max_counts.loc[a_max_counts.groupby(['source'])['timestamp'].idxmin()]
+
+        # Define the final dataframe results with the peak of source needing observation in optimal
+        # conditions, grouping by timestamp. Including the info of the number of sources where the
+        # peak is found, for the observavility time window with optimal condition for those sources
+        a_final_optimal_cond = a_timestamp.query('B3_soft_source_to_observe > 0').groupby(
+            ['timestamp', 'B3_soft_source_to_observe']
+        )[['source']].aggregate(lambda x: len(x.unique().tolist())).reset_index().rename(
+            columns={'B3_soft_source_to_observe': 'peak_count', 'source': 'num_orig_source'})
+
+        # Adding to the final dataframe results the sources available to be observed with SSR conditions
+        # including an amp cal
+        a_final_optimal_cond = a_final_optimal_cond.merge(a_ampcal_cond.groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).rename(
+            columns={'source': 'source_list'}).reset_index().drop_duplicates(subset=['timestamp'], keep='last')
+                                                          , on='timestamp', how='left')
+        prim_ampcal = a.query('kind_b3 == 1 and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                              ' and selSoftAll and Band3'
+                              ).groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).reset_index().rename(
+            columns={'source': 'prim_ampcal_list'}).drop_duplicates(subset=['timestamp'], keep='last')
+        a_final_optimal_cond = a_final_optimal_cond.merge(prim_ampcal, on='timestamp', how='left')
+
+        second_ampcal = a.query('kind_b3 == 2 and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                                ' and selSoftAll'
+                                ).groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).reset_index().rename(
+            columns={'source': 'second_ampcal_list'}).drop_duplicates(subset=['timestamp'])
+        a_final_optimal_cond = a_final_optimal_cond.merge(second_ampcal, on='timestamp', how='left')
+
+        a_final_optimal_cond['num_obs'] = a_final_optimal_cond.source_list.apply(lambda x: len(x))
+        a_final_optimal_cond['conditions'] = a_final_optimal_cond.timestamp.apply(
+            lambda x: "optimal prim_ampcal" if x in prim_ampcal_list_timestamp else "optimal second_ampcal")
+        # List of source included in  the observing plan
+        list_to_observe = a_ampcal_cond.query(
+            'timestamp in @a_final_optimal_cond.timestamp.tolist()').source.unique().tolist()
+        print("Sources to observe: ", list_to_observe)
+        # List of source not included in  the observing plan but with ampcal
+        list_pending_to_observe = a_ampcal_cond.query('source not in @list_to_observe').source.unique().tolist()
+        print("Sources pending to observe: ", list_pending_to_observe)
+        # List of source without ampcal or out of the observavility time window defined
+        list_non_ampcal = a_source_to_observe.query(
+            'source not in @list_to_observe and source not in @list_pending_to_observe').source.unique().tolist()
+        print("Source with non ampcal: ", list_non_ampcal)
+        # List of source non observable
+        list_non_observable = a.query(
+            '(kind_b3 == 3  or kind_b3 == 4)'
+            'and source not in @list_to_observe '
+            'and source not in @list_pending_to_observe '
+            'and source not in @list_non_ampcal').source.unique().tolist()
+        print("Source non observable: ", list_non_observable)
+        return a_final_optimal_cond
+
+        # def run_simulation(self):
+
+    def get_observation_windows(self, soft_const: bool = False, simulation: bool = False):
 
         """
         :param soft_const:
         """
+        if simulation:
+            a_frame = self.simulation_frame.copy()
+        else:
+            a_frame = self.main_frame.copy()
         if soft_const:
-            find_windows = self.main_frame.query(
+            find_windows = a_frame.query(
                 'selSoftAll == True'
             ).groupby(
                 ['source', 'timestamp']
             ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}).sort_values(by=['source', 'timestamp'])
         else:
-            find_windows = self.main_frame.query(
+            find_windows = a_frame.query(
                 'selAll == True'
             ).groupby(
-                ['source','timestamp']
+                ['source', 'timestamp']
             ).aggregate({'Band3': sum, 'Band6': sum, 'Band7': sum}).sort_values(by=['source', 'timestamp'])
 
         a = find_windows.reset_index().sort_values(by=['source', 'timestamp'])
-        a = a.merge((find_windows - find_windows.shift(1)).reset_index(), on=['source', 'timestamp'], suffixes=('', '_diff'))
-        a = a.merge((find_windows - find_windows.shift(-1)).reset_index(), on=['source', 'timestamp'],suffixes=('', '_diff_prev'))
+        a = a.merge((find_windows - find_windows.shift(1)).reset_index(), on=['source', 'timestamp'],
+                    suffixes=('', '_diff'))
+        a = a.merge((find_windows - find_windows.shift(-1)).reset_index(), on=['source', 'timestamp'],
+                    suffixes=('', '_diff_prev'))
         a['timediff'] = a.timestamp.diff().apply(lambda x: x.total_seconds() / 3600.0).fillna(-24.)
         a['timediff_prev'] = a.timestamp.diff(periods=-1).apply(lambda x: x.total_seconds() / 3600.0).fillna(24.)
-        kind_source = self.main_frame[['source', 'kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']].drop_duplicates()
+        kind_source = a_frame[['source', 'kind_b3', 'kind_b6', 'kind_b7', 'kind_b9']].drop_duplicates()
 
         startwindow = a.query('Band3 == True and (Band3_diff == 1 or abs(timediff) > 0.25)')[
             ['source', 'timestamp']].reset_index(drop=True).copy()
@@ -563,10 +843,10 @@ def calc_ha(ra: float, lst: float) -> float:
 
     ha = np.degrees(
         np.math.atan2(
-            np.sin(np.deg2rad(lst*15.) - np.deg2rad(ra)),
-            np.cos(np.deg2rad(lst*15.) - np.deg2rad(ra))
+            np.sin(np.deg2rad(lst * 15.) - np.deg2rad(ra)),
+            np.cos(np.deg2rad(lst * 15.) - np.deg2rad(ra))
         )
-    )/15.
+    ) / 15.
 
     return ha
 
@@ -574,8 +854,7 @@ def calc_ha(ra: float, lst: float) -> float:
 def get_sso_coordinates(
         sso_name: str, epoch: Union[float, Dict[str, str]],
         raw_table: bool = False
-        ) -> Union[SkyCoord, Table]:
-
+) -> Union[SkyCoord, Table]:
     """
       Get the ICRS coordinates of a Solar System Object from JPL Horizons as a
     SkyCord object. For debuging purposes, or further information, is possible
