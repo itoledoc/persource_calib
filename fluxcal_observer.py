@@ -670,9 +670,11 @@ class FluxcalObs(object):
 
     def observing_plan_by_source_peak(self, simulate: bool = False, peak_uncertainty: int = 0, min_timestamp=None,
                                       delta_timestamp=pd.Timedelta('1day')):
-        # makes observing plan grouping sources. Higher priority '0' is the group
-        # with more sources that can be calibrated (with either primary or secondary)
-        # observe_timestamp={'timestamp':[],'peak_obs_value':[],'final_peak_obs':[],'num_obs':[],'conditions':[],'source_list':[],'prim_ampcal_list':[],'second_ampcal_list':[]}
+        #Makes observing plan  grouping sources for the mayor peaks within the observing windows
+        #of each source. So group the sources in a different timestamps that can be calibrated
+        #with either primary or secondary amplitude calibrators.
+        #The output table have the following information
+        #peak_count, num_orig_source, source_list, prim_ampcal_list, second_ampcal_list, num_obs, conditions
         if simulate:
             a = self.simulation_frame.copy()
         else:
@@ -684,16 +686,19 @@ class FluxcalObs(object):
         last_timestamp = init_timestamp + delta_timestamp
 
         # ampcal_cond: Numbers of ampcal available by timestamp
-        ampcal_cond = caldata.ampcal_condition(simulate=simulate).copy()
+        ampcal_cond = self.ampcal_condition(simulate=simulate).copy()
         # Add ampcal_cond to the main frame
         a = a.merge(ampcal_cond, on='timestamp', how='left').fillna(0.0)
 
-        # ampcal_list_timestamp=ampcal_cond.query('(B3_soft_prim_ampcal > 0 or B3_soft_second_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp').timestamp.tolist()
+        # ampcal_list_timestamp=ampcal_cond.query('(B3_soft_prim_ampcal > 0 or
+        #                                           B3_soft_second_ampcal > 0) and
+        #                                           timestamp > @init_timestamp and
+        #                                           timestamp <= @last_timestamp').timestamp.tolist()
         # Timestamps with available primary ampcal
         prim_ampcal_list_timestamp = ampcal_cond.query('B3_soft_prim_ampcal > 0').timestamp.tolist()
 
         # source_to_observe: Numbers of source needing observations available by timestamp
-        source_to_observe = caldata.source_to_observe(simulate=simulate)
+        source_to_observe = self.source_to_observe(simulate=simulate)
         # Add source_to_observe to the main frame
         a = a.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
 
@@ -703,7 +708,8 @@ class FluxcalObs(object):
         )
         # Filter those timestamp with an available ampcal in optimal conditions and within the time windows defined
         a_ampcal_cond = a_source_to_observe.query(
-            '(B3_soft_prim_ampcal > 0 or B3_soft_second_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp')
+            '(B3_soft_prim_ampcal > 0 or B3_soft_second_ampcal > 0) and '
+            'timestamp > @init_timestamp and timestamp <= @last_timestamp')
 
         # Select from the filtered main frame those timestamp with the source observable in optimal conditions
         a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
@@ -769,6 +775,118 @@ class FluxcalObs(object):
         return a_final_optimal_cond
 
         # def run_simulation(self):
+
+    def observing_plan_by_source_peak_prim_calib(self, simulate: bool = False, peak_uncertainty: int = 0,
+                                                 min_timestamp=None, delta_timestamp=pd.Timedelta('1day')):
+        # Makes observing plan  grouping sources for the mayor peaks within the observing windows
+        # of each source. So group the sources in a different timestamps that can be calibrated
+        # with first a primary and then if needed a secondary amplitude calibrator.
+        # The output table have the following information
+        # peak_count, num_orig_source, source_list, prim_ampcal_list, second_ampcal_list, num_obs, conditions
+
+        if simulate:
+            a = self.simulation_frame.copy()
+        else:
+            a = self.main_frame.copy()
+        if min_timestamp == None:
+            init_timestamp = a.timestamp.min() - pd.Timedelta('1s')
+        else:
+            init_timestamp = min_timestamp
+        last_timestamp = init_timestamp + delta_timestamp
+
+        # ampcal_cond: Numbers of ampcal available by timestamp
+        ampcal_cond = self.ampcal_condition(simulate=simulate).copy()
+        # Add ampcal_cond to the main frame
+        a = a.merge(ampcal_cond, on='timestamp', how='left').fillna(0.0)
+
+        # ampcal_list_timestamp=ampcal_cond.query('(B3_soft_prim_ampcal > 0 or
+        #                                           B3_soft_second_ampcal > 0) and
+        #                                           timestamp > @init_timestamp and
+        #                                           timestamp <= @last_timestamp').timestamp.tolist()
+        # Timestamps with available primary ampcal
+        prim_ampcal_list_timestamp = ampcal_cond.query('B3_soft_prim_ampcal > 0').timestamp.tolist()
+
+        # source_to_observe: Numbers of source needing observations available by timestamp
+        source_to_observe = self.source_to_observe(simulate=simulate)
+        # Add source_to_observe to the main frame
+        a = a.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
+
+        # Select from the main frame source nedding observations in B3 and available from SSR conditions
+        a_source_to_observe = a.query(
+            '(kind_b3 == 3  or kind_b3 == 4) and selAll == True'
+        )
+        # Filter those timestamp with an available ampcal in optimal conditions and within the time windows defined
+        a_ampcal_cond = a_source_to_observe.query(
+            '(B3_soft_prim_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp')
+
+        # Select from the filtered main frame those timestamp with the source observable in optimal conditions
+        a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+        prim_ampcal_list_source = a_optimal_cond.source.unique().tolist()
+
+        a_ampcal_cond = a_source_to_observe.query(
+            '(B3_soft_prim_ampcal > 0 or (B3_soft_second_ampcal > 0 and source not in @prim_ampcal_list_source)) and timestamp > @init_timestamp and timestamp <= @last_timestamp')
+        a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+        # Got the peak of sources available to be observed with calibrations for each source observility time
+        # window with optimal conditions
+        a_max_counts = a_optimal_cond.loc[a_optimal_cond.groupby(['source'])['B3_soft_source_to_observe'].idxmax()]
+        # Filter the first timestamp by source in time
+        a_timestamp = a_max_counts.loc[a_max_counts.groupby(['source'])['timestamp'].idxmin()]
+
+        # Define the final dataframe results with the peak of source needing observation in optimal
+        # conditions, grouping by timestamp. Including the info of the number of sources where the
+        # peak is found, for the observavility time window with optimal condition for those sources
+        a_final_optimal_cond = a_timestamp.query('B3_soft_source_to_observe > 0').groupby(
+            ['timestamp', 'B3_soft_source_to_observe']
+        )[['source']].aggregate(lambda x: len(x.unique().tolist())).reset_index().rename(
+            columns={'B3_soft_source_to_observe': 'peak_count', 'source': 'num_orig_source'})
+
+        # Adding to the final dataframe results the sources available to be observed with SSR conditions
+        # including an amp cal
+        a_final_optimal_cond = a_final_optimal_cond.merge(a_ampcal_cond.groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).rename(
+            columns={'source': 'source_list'}).reset_index().drop_duplicates(subset=['timestamp'], keep='last')
+                                                          , on='timestamp', how='left')
+        prim_ampcal = a.query('kind_b3 == 1 and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                              ' and selSoftAll and Band3'
+                              ).groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).reset_index().rename(
+            columns={'source': 'prim_ampcal_list'}).drop_duplicates(subset=['timestamp'], keep='last')
+        a_final_optimal_cond = a_final_optimal_cond.merge(prim_ampcal, on='timestamp', how='left')
+
+        second_ampcal = a.query('kind_b3 == 2 and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                                ' and selSoftAll'
+                                ).groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).reset_index().rename(
+            columns={'source': 'second_ampcal_list'}).drop_duplicates(subset=['timestamp'])
+        a_final_optimal_cond = a_final_optimal_cond.merge(second_ampcal, on='timestamp', how='left')
+
+        a_final_optimal_cond['num_obs'] = a_final_optimal_cond.source_list.apply(lambda x: len(x))
+        a_final_optimal_cond['conditions'] = a_final_optimal_cond.timestamp.apply(
+            lambda x: "optimal prim_ampcal" if x in prim_ampcal_list_timestamp else "optimal second_ampcal")
+        # List of source included in  the observing plan
+        list_to_observe = a_ampcal_cond.query(
+            'timestamp in @a_final_optimal_cond.timestamp.tolist()').source.unique().tolist()
+        print("Sources to observe: ", list_to_observe)
+        # List of source not included in  the observing plan but with ampcal
+        list_pending_to_observe = a_ampcal_cond.query('source not in @list_to_observe').source.unique().tolist()
+        print("Sources pending to observe: ", list_pending_to_observe)
+        # List of source without ampcal or out of the observavility time window defined
+        list_non_ampcal = a_source_to_observe.query(
+            'source not in @list_to_observe and source not in @list_pending_to_observe').source.unique().tolist()
+        print("Source with non ampcal: ", list_non_ampcal)
+        # List of source non observable
+        list_non_observable = a.query(
+            '(kind_b3 == 3  or kind_b3 == 4)'
+            'and source not in @list_to_observe '
+            'and source not in @list_pending_to_observe '
+            'and source not in @list_non_ampcal').source.unique().tolist()
+        print("Source non observable: ", list_non_observable)
+        return a_final_optimal_cond
 
     def get_observation_windows(self, soft_const: bool = False, simulation: bool = False):
 
