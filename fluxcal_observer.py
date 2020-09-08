@@ -297,7 +297,7 @@ class FluxcalObs(object):
         self.main_frame['selMoon'] = self.main_frame.Moon.apply(
             lambda x: x >= moon_limit * 3600)
         self.main_frame['selAll'] = self.main_frame.apply(
-            lambda x: True if (x['selAlt'] + x['selTran'] + x['selSun'] +
+            lambda x: True if (x['selAlt'] and x['selTran'] and x['selSun'] and
                                x['selMoon']) else False,
             axis=1)
 
