@@ -627,6 +627,13 @@ class FluxcalObs(object):
                 self.simulation_frame[[b]] = self.simulation_frame.apply(
                     lambda x: k if x['source'] in list_of_source else x[b], axis=1)
 
+    def flag_time_window_in_simulation(self, starttime: pd.Timestamp, endtime: pd.Timestamp):
+        # Time windows where is not possible to observe
+        self.simulation_frame[['selAll']] = self.simulation_frame.apply(
+        lambda x: False if x['timestamp'] > starttime and x['timestamp'] < endtime else x['selAll'], axis=1)
+        self.simulation_frame[['selSoftAll']] = self.simulation_frame.apply(
+        lambda x: False if x['timestamp'] > starttime and x['timestamp'] < endtime else x['selSoftAll'], axis=1)
+
     def observing_plan_max_peak(self, simulate: bool = False, peak_uncertainty: int = 0, min_timestamp=None,
                                 delta_timestamp=pd.Timedelta('1day')):
         # makes observing plan grouping sources. Higher priority '0' is the group
