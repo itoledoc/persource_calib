@@ -904,11 +904,31 @@ class FluxcalObs(object):
 
         a_ampcal_cond = a_source_to_observe.query(
             '(B3_soft_prim_ampcal > 0 or (B3_soft_second_ampcal > 0 and source not in @prim_ampcal_list_source)) and timestamp > @init_timestamp and timestamp <= @last_timestamp')
-        a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+        # Create an exception list for the peak in optimal conditions for source without optimal conditions
+        ssr_cond_ampcal_cond_list = a_ampcal_cond.query('selAll == True').source.unique().tolist()
+        # opt_cond_ampcal_cond_list=a_ampcal_cond.query('selSoftAll == True').source.unique().tolist()
+        opt_cond_list = a_source_to_observe.query('selSoftAll == True').source.unique().tolist()
+        # ssr_cond_source_list=[s for s in ssr_cond_ampcal_cond_list if s not in opt_cond_ampcal_cond_list]
+        ssr_cond_source_list = [s for s in ssr_cond_ampcal_cond_list if s not in opt_cond_list]
+
+        # Source observed in optimal conditions + those without optimal conditions but with amp cal in ssr cond.
+        a_optimal_cond = a_ampcal_cond.query(
+            'selSoftAll == True or (source in @ssr_cond_source_list and selAll == True)')
+        #a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
 
         # Got the peak of sources available to be observed with calibrations for each source observility time
+        # window with optimal conditions and including those sources without optimal conditions with amp cal.
+        a_max_counts = a_optimal_cond.loc[
+            a_optimal_cond.groupby(['source'])['B3_soft_source_to_observe'].idxmax().append(
+                a_optimal_cond.query('source in @ssr_cond_source_list').groupby(['source'])[
+                    'B3_source_to_observe'].idxmax()
+            )
+        ]
+        # Got the peak of sources available to be observed with calibrations for each source observility time
         # window with optimal conditions
-        a_max_counts = a_optimal_cond.loc[a_optimal_cond.groupby(['source'])['B3_soft_source_to_observe'].idxmax()]
+        #a_max_counts = a_optimal_cond.loc[a_optimal_cond.groupby(['source'])['B3_soft_source_to_observe'].idxmax()]
+
         # Filter the first timestamp by source in time
         a_timestamp = a_max_counts.loc[a_max_counts.groupby(['source'])['timestamp'].idxmin()]
 
