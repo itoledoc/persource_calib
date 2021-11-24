@@ -682,9 +682,13 @@ class FluxcalObs(object):
 
         available_source_to_observe = a.groupby(
             ['timestamp']
-        ).aggregate({'B3_source_to_observe': sum, 'B6_source_to_observe': sum, 'B7_source_to_observe': sum,
-                     'B3_soft_source_to_observe': sum, 'B6_soft_source_to_observe': sum,
-                     'B7_soft_source_to_observe': sum}).reset_index()
+        ).aggregate({'B1_source_to_observe': sum, 'B2_source_to_observe': sum, 'B3_source_to_observe': sum,
+                     'B4_source_to_observe': sum, 'B5_source_to_observe': sum, 'B6_source_to_observe': sum,
+                     'B7_source_to_observe': sum, 'B8_source_to_observe': sum, 'B9_source_to_observe': sum,
+                     'B10_source_to_observe': sum, 'B1_soft_source_to_observe': sum, 'B2_soft_source_to_observe': sum,
+                     'B3_soft_source_to_observe': sum, 'B4_soft_source_to_observe': sum,'B5_soft_source_to_observe': sum,
+                     'B6_soft_source_to_observe': sum, 'B7_soft_source_to_observe': sum,'B8_soft_source_to_observe': sum,
+                     'B9_soft_source_to_observe': sum, 'B10_soft_source_to_observe': sum}).reset_index()
         return available_source_to_observe
 
     def create_simulation(self):
@@ -1101,7 +1105,7 @@ class FluxcalObs(object):
         )
         # Filter those timestamp with an available ampcal in optimal conditions and within the time windows defined
         a_ampcal_cond = a_source_to_observe.query(
-            '(B3_soft_prim_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp')
+            '(B%s_soft_prim_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp'%(band))
 
         # Select from the filtered main frame those timestamp with the source observable in optimal conditions
         a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
@@ -1372,6 +1376,234 @@ class FluxcalObs(object):
             'and source not in @list_to_observe '
             'and source not in @list_pending_to_observe '
             'and source not in @list_non_ampcal'%(band,band)).source.unique().tolist()
+        print("Source non observable: ", list_non_observable)
+        return a_final_optimal_cond
+
+    def observing_plan_by_source_peak_with_cadence_and_non_amp_cal(self, simulate: bool = False,
+                                                                   peak_uncertainty: int = 0,
+                                                                   min_timestamp=None,
+                                                                   delta_timestamp=pd.Timedelta('1day'),
+                                                                   band: str = '3'):
+        # Makes observing plan  grouping sources for the mayor peaks within the observing windows
+        # of each source. So, group the sources in a different timestamps that can be calibrated
+        # with first a primary and then if needed a secondary amplitude calibrator.
+        # For those sources without ampcal it try to observe with a source that at the same time can be observed with an ampcal
+        # The output table have the following information
+        # peak_count, num_orig_source, source_list, prim_ampcal_list, second_ampcal_list, num_obs, conditions
+        # UNDER DEVELOPMENT
+        if simulate:
+            a = self.simulation_frame.copy()
+        else:
+            a = self.main_frame.copy()
+        if min_timestamp == None:
+            init_timestamp = a.timestamp.min() - pd.Timedelta('1s')
+        else:
+            init_timestamp = min_timestamp
+        last_timestamp = init_timestamp + delta_timestamp
+
+        # ampcal_cond: Numbers of ampcal available by timestamp
+        ampcal_cond = self.ampcal_condition(simulate=simulate).copy()
+        # Add ampcal_cond to the main frame
+        a = a.merge(ampcal_cond, on='timestamp', how='left').fillna(0.0)
+
+        # Timestamps with available primary ampcal
+        prim_ampcal_list_timestamp = ampcal_cond.query('B%s_soft_prim_ampcal > 0' % (band)).timestamp.tolist()
+
+        # source_to_observe: Numbers of source needing observations available by timestamp
+        # source_to_observe = self.source_to_observe_with_cadence(simulate=simulate)
+        # Add source_to_observe to the main frame
+        # a = a.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
+
+        # Select from the main frame source nedding observations in Bx and available from SSR conditions
+        # including also those already observed not usable as secondary ampcal
+        a_source_to_observe = a.query(
+            '(kind_b%s == 0 or kind_b%s == 3 or kind_b%s == 4) and selAll == True' % (band, band, band)
+        )
+
+        # Filter those timestamp with an available ampcal in optimal conditions and within the time windows defined
+        a_ampcal_cond = a_source_to_observe.query(
+            '(B%s_soft_prim_ampcal > 0) and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band))
+
+        # Select from the filtered main frame those timestamp with the source observable in optimal conditions
+        a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+        # a_optimal_cond_high_cadency =   a_optimal_cond.query('cadence == 3.')
+        prim_ampcal_list_source = a_optimal_cond.source.unique().tolist()
+        prim_ampcal_list_source_high_cadency = a_optimal_cond.query('cadence == 3.').source.unique().tolist()
+
+        a_source_to_observe = a.query(
+            '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source_high_cadency) and selAll == True' % (
+            band, band)
+        )
+
+        a_ampcal_cond = a_source_to_observe.query(
+            '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
+            ' source not in @prim_ampcal_list_source_high_cadency)) and timestamp > @init_timestamp and'
+            ' timestamp <= @last_timestamp' % (band, band))
+        a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+        list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
+
+        # Sources with non ampcal
+        non_ampcal_optimal_cond = a.query('(kind_b%s == 3 or kind_b%s == 4 ) and'
+                                          ' selSoftAll == True and source not in @list_source_optimal_cond' % (
+                                          band, band)
+                                          )
+        # Defined empty in case they are not used
+        non_ampcal_optimal_cond_sec_ampcal_sources = []
+        non_ampcal_optimal_cond_sec_ampcal_timestamps = []
+        non_ampcal_nonoptimal_cond_sec_ampcal_sources = []
+        non_ampcal_nonoptimal_cond_sec_ampcal_timestamps = []
+        if non_ampcal_optimal_cond.shape[0] > 0:
+            # Timestamp to observe
+            non_ampcal_optimal_cond_timestamps = non_ampcal_optimal_cond.timestamp.unique().tolist()
+            non_ampcal_optimal_cond_sec_ampcal = a.query(
+                'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
+                ' and selSoftAll == True')
+
+            non_ampcal_optimal_cond_sec_ampcal_sources = non_ampcal_optimal_cond_sec_ampcal.source.unique().tolist()
+            non_ampcal_optimal_cond_sec_ampcal_timestamps = non_ampcal_optimal_cond_sec_ampcal.timestamp.unique().tolist()
+
+            non_ampcal_optimal_cond_sources = non_ampcal_optimal_cond.query(
+                'timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps').source.unique().tolist()
+
+            # New definition including more sources
+            a_source_to_observe = a.query(
+                '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source or source in @non_ampcal_optimal_cond_sec_ampcal_sources) and selAll == True' % (
+                band, band)
+            )
+            a_ampcal_cond = a_source_to_observe.query(
+                '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
+                ' source not in @prim_ampcal_list_source_high_cadency and '
+                'source not in @non_ampcal_optimal_cond_sec_ampcal_sources) or '
+                '(source in @non_ampcal_optimal_cond_sources and timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) )'
+                ' and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band, band))
+
+            a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+            list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
+
+            # Sources with non ampcal
+            non_ampcal_nonoptimal_cond = a.query('(kind_b%s == 3 or kind_b%s == 4 ) and'
+                                                 ' selSoftAll == True and source not in @list_source_optimal_cond' % (
+                                                 band, band)
+                                                 )
+
+            if non_ampcal_nonoptimal_cond.shape[0] > 0:
+                # Timestamp to observe
+                non_ampcal_nonoptimal_cond_timestamps = non_ampcal_nonoptimal_cond.timestamp.unique().tolist()
+                non_ampcal_nonoptimal_cond_sec_ampcal = a.query(
+                    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
+                    ' and selAll == True')
+
+                non_ampcal_nonoptimal_cond_sec_ampcal_sources = non_ampcal_nonoptimal_cond_sec_ampcal.source.unique().tolist()
+                non_ampcal_nonoptimal_cond_sec_ampcal_timestamps = non_ampcal_nonoptimal_cond_sec_ampcal.timestamp.unique().tolist()
+
+                non_ampcal_nonoptimal_cond_sources = non_ampcal_nonoptimal_cond.query(
+                    'timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps').source.unique().tolist()
+                # New definition including more sources
+                a_source_to_observe = a.query(
+                    '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source '
+                    'or source in @non_ampcal_optimal_cond_sec_ampcal_sources'
+                    'or source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources'
+                    ' and selAll == True' % (band, band)
+                )
+                a_ampcal_cond = a_source_to_observe.query(
+                    '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
+                    ' source not in @prim_ampcal_list_source_high_cadency and '
+                    'source not in @non_ampcal_optimal_cond_sec_ampcal_sources) or '
+                    '(source in @non_ampcal_optimal_cond_sources and timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) or '
+                    '(source in @non_nonampcal_optimal_cond_sources and timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps) )'
+                    ' and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band, band))
+
+                a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+
+                list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
+
+                # source_to_observe: Numbers of source needing observations available by timestamp
+        source_to_observe = self.source_to_observe_with_cadence(simulate=simulate,
+                                                                list_source_to_observe={
+                                                                    'b%s' % (band): list_source_optimal_cond})
+
+        # Add source_to_observe to the main frame and in the optimal conditions
+        a = a.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
+        a_optimal_cond = a_optimal_cond.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
+
+        # Got the peak of sources available to be observed with calibrations for each source observility time
+        # window with optimal conditions
+        a_max_counts = a_optimal_cond.loc[
+            a_optimal_cond.groupby(['source'])['B%s_soft_source_to_observe' % (band)].idxmax()]
+        # Filter the first timestamp by source in time
+        a_timestamp = a_max_counts.loc[a_max_counts.groupby(['source'])['timestamp'].idxmin()]
+
+        # Define the final dataframe results with the peak of source needing observation in optimal
+        # conditions, grouping by timestamp. Including the info of the number of sources where the
+        # peak is found, for the observavility time window with optimal condition for those sources
+        a_final_optimal_cond = a_timestamp.query('B%s_soft_source_to_observe > 0' % (band)).groupby(
+            ['timestamp', 'B%s_soft_source_to_observe' % (band)]
+        )[['source']].aggregate(lambda x: len(x.unique().tolist())).reset_index().rename(
+            columns={'B%s_soft_source_to_observe' % (band): 'peak_count', 'source': 'num_orig_source'})
+
+        # Adding to the final dataframe results the sources available to be observed with SSR conditions
+        # including an amp cal
+        a_final_optimal_cond = a_final_optimal_cond.merge(a_ampcal_cond.groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).rename(
+            columns={'source': 'source_list'}).reset_index().drop_duplicates(subset=['timestamp'], keep='last')
+                                                          , on='timestamp', how='left')
+
+        prim_ampcal = a.query('kind_b%s == 1 and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                              ' and selSoftAll and Band%s' % (band, band)
+                              ).groupby(['timestamp']
+                                        )[['source']].aggregate(lambda x: x.unique().tolist()
+                                                                ).reset_index().rename(
+            columns={'source': 'prim_ampcal_list'}
+            ).drop_duplicates(subset=['timestamp'], keep='last')
+
+        a_final_optimal_cond = a_final_optimal_cond.merge(prim_ampcal, on='timestamp', how='left')
+        # Define secondary ampcal list, for those source with non amp cal, here are incliuded the candidates to sec ampcal
+        second_ampcal = a.query('timestamp in @a_final_optimal_cond.timestamp.tolist() and (((kind_b%s == 2'
+                                ' or (source in @non_ampcal_optimal_cond_sec_ampcal_sources and '
+                                'timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) ) and selSoftAll)'
+                                'or (source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources and '
+                                'timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps and selAll))' % (band)
+                                ).groupby(['timestamp']
+                                          )[['source']].aggregate(lambda x: x.unique().tolist()
+                                                                  ).reset_index().rename(
+            columns={'source': 'second_ampcal_list'}
+            ).drop_duplicates(subset=['timestamp'])
+
+        a_final_optimal_cond = a_final_optimal_cond.merge(second_ampcal, on='timestamp', how='left')
+
+        a_final_optimal_cond['num_obs'] = a_final_optimal_cond.source_list.apply(lambda x: len(x))
+        a_final_optimal_cond['conditions'] = a_final_optimal_cond.timestamp.apply(
+            lambda x: "optimal prim_ampcal" if x in prim_ampcal_list_timestamp else "optimal second_ampcal")
+
+        source_high_cadence = a.query('cadence == 3. and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                                      ' and selAll'
+                                      ).groupby(
+            ['timestamp']
+        )[['source']].aggregate(lambda x: x.unique().tolist()).reset_index().rename(
+            columns={'source': 'source_high_cadence_list'}).drop_duplicates(subset=['timestamp'])
+        a_final_optimal_cond = a_final_optimal_cond.merge(source_high_cadence, on='timestamp', how='left')
+
+        # List of source included in  the observing plan
+        list_to_observe = a_ampcal_cond.query(
+            'timestamp in @a_final_optimal_cond.timestamp.tolist()').source.unique().tolist()
+        print("Sources to observe: ", list_to_observe)
+        # List of source not included in  the observing plan but with ampcal
+        list_pending_to_observe = a_ampcal_cond.query('source not in @list_to_observe').source.unique().tolist()
+        print("Sources pending to observe: ", list_pending_to_observe)
+        # List of source without ampcal or out of the observavility time window defined
+        list_non_ampcal = a_source_to_observe.query(
+            'source not in @list_to_observe and source not in @list_pending_to_observe').source.unique().tolist()
+        print("Source with non ampcal: ", list_non_ampcal)
+        # List of source non observable
+        list_non_observable = a.query(
+            '(kind_b%s == 3  or kind_b%s == 4)'
+            'and source not in @list_to_observe '
+            'and source not in @list_pending_to_observe '
+            'and source not in @list_non_ampcal' % (band, band)).source.unique().tolist()
         print("Source non observable: ", list_non_observable)
         return a_final_optimal_cond
 
