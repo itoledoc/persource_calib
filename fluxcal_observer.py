@@ -1457,8 +1457,11 @@ class FluxcalObs(object):
         if non_ampcal_optimal_cond.shape[0] > 0:
             # Timestamp to observe
             non_ampcal_optimal_cond_timestamps = non_ampcal_optimal_cond.timestamp.unique().tolist()
+            #non_ampcal_optimal_cond_sec_ampcal = a.query(
+            #    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
+            #    ' and selSoftAll == True')
             non_ampcal_optimal_cond_sec_ampcal = a.query(
-                'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
+                'source in @prim_ampcal_list_source_high_cadency and timestamp in @non_ampcal_optimal_cond_timestamps'
                 ' and selSoftAll == True')
 
             non_ampcal_optimal_cond_sec_ampcal_sources = non_ampcal_optimal_cond_sec_ampcal.source.unique().tolist()
@@ -1468,8 +1471,12 @@ class FluxcalObs(object):
                 'timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps').source.unique().tolist()
 
             # New definition including more sources
+            #a_source_to_observe = a.query(
+            #    '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source or source in @non_ampcal_optimal_cond_sec_ampcal_sources) and selAll == True' % (
+            #    band, band)
+            #)
             a_source_to_observe = a.query(
-                '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source or source in @non_ampcal_optimal_cond_sec_ampcal_sources) and selAll == True' % (
+                '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source_high_cadency or source in @non_ampcal_optimal_cond_sec_ampcal_sources) and selAll == True' % (
                 band, band)
             )
             a_ampcal_cond = a_source_to_observe.query(
@@ -1492,8 +1499,11 @@ class FluxcalObs(object):
             if non_ampcal_nonoptimal_cond.shape[0] > 0:
                 # Timestamp to observe
                 non_ampcal_nonoptimal_cond_timestamps = non_ampcal_nonoptimal_cond.timestamp.unique().tolist()
+                #non_ampcal_nonoptimal_cond_sec_ampcal = a.query(
+                #    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
+                #    ' and selAll == True')
                 non_ampcal_nonoptimal_cond_sec_ampcal = a.query(
-                    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
+                    'source in @prim_ampcal_list_source_high_cadency and timestamp in @non_ampcal_optimal_cond_timestamps'
                     ' and selAll == True')
 
                 non_ampcal_nonoptimal_cond_sec_ampcal_sources = non_ampcal_nonoptimal_cond_sec_ampcal.source.unique().tolist()
@@ -1502,12 +1512,19 @@ class FluxcalObs(object):
                 non_ampcal_nonoptimal_cond_sources = non_ampcal_nonoptimal_cond.query(
                     'timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps').source.unique().tolist()
                 # New definition including more sources
+                #a_source_to_observe = a.query(
+                #    '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source '
+                #    'or source in @non_ampcal_optimal_cond_sec_ampcal_sources'
+                #    'or source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources'
+                #    ' and selAll == True' % (band, band)
+                #)
                 a_source_to_observe = a.query(
-                    '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source '
+                    '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source_high_cadency '
                     'or source in @non_ampcal_optimal_cond_sec_ampcal_sources'
                     'or source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources'
                     ' and selAll == True' % (band, band)
                 )
+
                 a_ampcal_cond = a_source_to_observe.query(
                     '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
                     ' source not in @prim_ampcal_list_source_high_cadency and '
