@@ -1431,15 +1431,25 @@ class FluxcalObs(object):
         prim_ampcal_list_source = a_optimal_cond.source.unique().tolist()
         prim_ampcal_list_source_high_cadency = a_optimal_cond.query('cadence == 3.').source.unique().tolist()
 
+        #Select the sources that need to be observed, by the moment we will not include those in prim_ampcal_list_source_high_cadency
+        #a_source_to_observe = a.query(
+        #    '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source_high_cadency) and selAll == True' % (
+        #    band, band)
+        #)
         a_source_to_observe = a.query(
-            '(kind_b%s == 3 or kind_b%s == 4 or source in @prim_ampcal_list_source_high_cadency) and selAll == True' % (
+            '(kind_b%s == 3 or kind_b%s == 4) and selAll == True' % (
             band, band)
         )
 
+        #a_ampcal_cond = a_source_to_observe.query(
+        #    '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
+        #    ' source not in @prim_ampcal_list_source_high_cadency)) and timestamp > @init_timestamp and'
+        #    ' timestamp <= @last_timestamp' % (band, band))
         a_ampcal_cond = a_source_to_observe.query(
-            '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
-            ' source not in @prim_ampcal_list_source_high_cadency)) and timestamp > @init_timestamp and'
+            '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0)'
+            ' ) and timestamp > @init_timestamp and'
             ' timestamp <= @last_timestamp' % (band, band))
+
         a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
 
         list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
