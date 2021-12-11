@@ -1555,13 +1555,21 @@ class FluxcalObs(object):
         # Add source_to_observe to the main frame and in the optimal conditions
         a = a.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
         a_optimal_cond = a_optimal_cond.merge(source_to_observe, on='timestamp', how='left').fillna(0.0)
-
+        a_optimal_cond['max_counts']=a_optimal_cond.groupby(['source'])['B%s_soft_source_to_observe'%(band)].transform(max)
         # Got the peak of sources available to be observed with calibrations for each source observility time
         # window with optimal conditions
-        a_max_counts = a_optimal_cond.loc[
-            a_optimal_cond.groupby(['source'])['B%s_soft_source_to_observe' % (band)].idxmax()]
+        #a_max_counts = a_optimal_cond.loc[
+        #               a_optimal_cond.groupby(['source'])['B%s_soft_source_to_observe' % (band)].idxmax()]
+        a_max_counts = a_optimal_cond.query('B%s_soft_source_to_observe == max_counts'%(band))
+        a_max_counts['timedelta']=a_max_counts.groupby(['source'])['timestamp'].diff()
+        a_max_counts['timejump']=a_max_counts.timedelta.apply(lambda x: 1 if x > pd.Timedelta("15min") else 0)
+        a_max_counts['cumtimejump']=a_max_counts.groupby(['source'])['timejump'].cumsum()
+        a_max_counts_first_window=a_max_counts.query('cumtimejump < 1')
+        a_max_counts_first_window['middletimestamp']=a_max_counts_first_window.groupby(['source'])['timestamp'].rank(pct=True, ascending=True, method='average').apply(lambda x: abs(x-0.51))
+        a_max_counts_middle_timestamp_window=a_max_counts_first_window.loc[a_max_counts_first_window.groupby(['source'])['middletimestamp'].idxmin()]
         # Filter the first timestamp by source in time
-        a_timestamp = a_max_counts.loc[a_max_counts.groupby(['source'])['timestamp'].idxmin()]
+        #a_timestamp = a_max_counts.loc[a_max_counts.groupby(['source'])['timestamp'].idxmin()]
+        a_timestamp = a_max_counts_middle_timestamp_window.loc[a_max_counts_middle_timestamp_window.groupby(['source'])['timestamp'].idxmin()]
 
         # Define the final dataframe results with the peak of source needing observation in optimal
         # conditions, grouping by timestamp. Including the info of the number of sources where the
