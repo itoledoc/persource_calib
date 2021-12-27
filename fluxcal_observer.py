@@ -1540,18 +1540,18 @@ class FluxcalObs(object):
                 #)
                 a_source_to_observe = a.query(
                     '(kind_b%s == 3 or kind_b%s == 4 '
-                    'or source in @non_ampcal_optimal_cond_sec_ampcal_sources'
-                    'or source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources'
-                    ' and selAll == True' % (band, band)
+                    'or source in @non_ampcal_optimal_cond_sec_ampcal_sources '
+                    'or source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources) '
+                    'and selAll == True' % (band, band)
                 )
 
                 a_ampcal_cond = a_source_to_observe.query(
-                    '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
-                    ' source not in @prim_ampcal_list_source_high_cadency and '
+                    '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and '
+                    'source not in @prim_ampcal_list_source_high_cadency and '
                     'source not in @non_ampcal_optimal_cond_sec_ampcal_sources) or '
                     '(source in @non_ampcal_optimal_cond_sources and timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) or '
-                    '(source in @non_nonampcal_optimal_cond_sources and timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps) )'
-                    ' and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band, band))
+                    '(source in @non_ampcal_nonoptimal_cond_sources and timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps) ) '
+                    'and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band, band))
 
                 a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
 
