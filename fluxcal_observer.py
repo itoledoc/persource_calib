@@ -281,7 +281,7 @@ class FluxcalObs(object):
 
     def apply_selector(
             self, horizon: float = 25., transit_limit: float = 86.,
-            sun_limit: float = 21., moon_limit: float = 5.):
+            sun_limit: float = 10., moon_limit: float = 2.):
 
         """
 
@@ -294,6 +294,8 @@ class FluxcalObs(object):
         # in elevation (horizon) and below 87. deg in elevation (transit_limit)
         horizon_sso = 31.  # From SSR is 30. deg in elevation
         transit_limit_sso = 79.  # From SSR is 80. deg in elevation
+        sun_limit_sso = 21. # From SSR is 20. deg of angular separation
+        moon_limit_sso = 5. # From SSR is 4. deg of angular separation
 
         self.main_frame['selAlt'] = self.main_frame.apply(
             lambda x: x['altitude'] >= horizon if x['kind_b3'] != 1 else
@@ -304,10 +306,20 @@ class FluxcalObs(object):
             lambda x: x['altitude'] <= transit_limit if x['kind_b3'] != 1 else
             x['altitude'] <= transit_limit_sso, axis=1
             )
-        self.main_frame['selSun'] = self.main_frame.Sun.apply(
-            lambda x: x >= sun_limit * 3600)
-        self.main_frame['selMoon'] = self.main_frame.Moon.apply(
-            lambda x: x >= moon_limit * 3600)
+        #The SSR consider only Sun and Moon separtion avoidance limits for SSO
+        # But not for grid sources. In the PSO we introduce a limit to be applied to
+        # the grid sources. THis need to be clarified.
+        #self.main_frame['selSun'] = self.main_frame.Sun.apply(
+        #    lambda x: x >= sun_limit * 3600)
+        #self.main_frame['selMoon'] = self.main_frame.Moon.apply(
+        #    lambda x: x >= moon_limit * 3600)
+        self.main_frame['selSun'] = self.main_frame.apply(
+            lambda x: x['Sun'] >= sun_limit_sso * 3600 if x['kind_b3'] == 1 else
+            x['Sun'] >= sun_limit * 3600., axis=1)
+        self.main_frame['selMoon'] = self.main_frame.apply(
+            lambda x: x['Moon'] >= moon_limit_sso * 3600 if x['kind_b3'] == 1 else
+            x['Moon'] >= moon_limit * 3600, axis=1)
+
         self.main_frame['selAll'] = self.main_frame.apply(
             lambda x: True if (x['selAlt'] and x['selTran'] and x['selSun'] and
                                x['selMoon']) else False,
