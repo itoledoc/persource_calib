@@ -1441,7 +1441,7 @@ class FluxcalObs(object):
 
         # a_optimal_cond_high_cadency =   a_optimal_cond.query('cadence == 3.')
         prim_ampcal_list_source = a_optimal_cond.source.unique().tolist()
-        prim_ampcal_list_source_high_cadency = a_optimal_cond.query('cadence == 3.').source.unique().tolist()
+        prim_ampcal_list_source_high_cadency = a_optimal_cond.query('cadence < 7.').source.unique().tolist()
 
         #Select the sources that need to be observed, by the moment we will not include those in prim_ampcal_list_source_high_cadency
         #a_source_to_observe = a.query(
