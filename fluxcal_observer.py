@@ -1395,7 +1395,8 @@ class FluxcalObs(object):
                                                                    peak_uncertainty: int = 0,
                                                                    min_timestamp=None,
                                                                    delta_timestamp=pd.Timedelta('1day'),
-                                                                   band: str = '3'):
+                                                                   band: str = '3',
+                                                                   optimal_conditions: bool = False):
         # Makes observing plan  grouping sources for the mayor peaks within the observing windows
         # of each source. So, group the sources in a different timestamps that can be calibrated
         # with first a primary and then if needed a secondary amplitude calibrator.
@@ -1602,12 +1603,20 @@ class FluxcalObs(object):
             columns={'B%s_soft_source_to_observe' % (band): 'peak_count', 'source': 'num_orig_source'})
 
         # Adding to the final dataframe results the sources available to be observed with SSR conditions
-        # including an amp cal
-        a_final_optimal_cond = a_final_optimal_cond.merge(a_ampcal_cond.groupby(
-            ['timestamp']
-        )[['source']].aggregate(lambda x: x.unique().tolist()).rename(
-            columns={'source': 'source_list'}).reset_index().drop_duplicates(subset=['timestamp'], keep='last')
-                                                          , on='timestamp', how='left')
+        # including an amp cal. In case optimal_conditions is et True this include the source available but
+        # using the optimal conditions.
+        if optimal_conditions:
+            a_final_optimal_cond = a_final_optimal_cond.merge(a_optimal_cond.groupby(
+                ['timestamp']
+            )[['source']].aggregate(lambda x: x.unique().tolist()).rename(
+                columns={'source': 'source_list'}).reset_index().drop_duplicates(subset=['timestamp'], keep='last')
+                                                              , on='timestamp', how='left')
+        else:
+            a_final_optimal_cond = a_final_optimal_cond.merge(a_ampcal_cond.groupby(
+                ['timestamp']
+            )[['source']].aggregate(lambda x: x.unique().tolist()).rename(
+                columns={'source': 'source_list'}).reset_index().drop_duplicates(subset=['timestamp'], keep='last')
+                                                              , on='timestamp', how='left')
 
         prim_ampcal = a.query('kind_b%s == 1 and timestamp in @a_final_optimal_cond.timestamp.tolist()'
                               ' and selSoftAll and Band%s' % (band, band)
@@ -1636,8 +1645,8 @@ class FluxcalObs(object):
         a_final_optimal_cond['conditions'] = a_final_optimal_cond.timestamp.apply(
             lambda x: "optimal prim_ampcal" if x in prim_ampcal_list_timestamp else "optimal second_ampcal")
 
-        source_high_cadence = a.query('cadence == 3. and timestamp in @a_final_optimal_cond.timestamp.tolist()'
-                                      ' and selAll'
+        source_high_cadence = a.query('cadence < 7. and timestamp in @a_final_optimal_cond.timestamp.tolist()'
+                                      ' and selSoftAll'
                                       ).groupby(
             ['timestamp']
         )[['source']].aggregate(lambda x: x.unique().tolist()).reset_index().rename(
