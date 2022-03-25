@@ -36,7 +36,8 @@ SSO_ID_DICT = {
     'Sun': 0, 'Moon': 301, 'Mars': 4,
     'Jupiter': 5, 'Uranus': 7, 'Neptune': 8,
     'Io': 501, 'Europa': 502, 'Ganymede': 503,
-    'Callisto': 504
+    'Callisto': 504, 'Vesta': 2000004, 
+    'Ceres': 2000001, 'Pallas': 2000002
 }
 
 BAND_LIMS = {'B1': 530.03,
