@@ -328,8 +328,11 @@ class FluxcalObs(object):
 
         band_columns = ['Band1', 'Band2', 'Band3', 'Band4', 'Band5', 'Band6', 'Band7', 'Band8', 'Band9', 'Band10']
 
-        self.main_frame[band_columns] = self.main_frame.closest_distance.apply(
-            lambda x: band_limits(x))
+        #self.main_frame[band_columns] = self.main_frame.closest_distance.apply(
+        #    lambda x: band_limits(x))
+        self.main_frame[band_columns]=self.main_frame.apply(lambda x:
+                                                            band_limits(x['closest_distance']) &
+                                                            band_flux_limits(x['Sun'], x['source']) ,axis=1)
 
     def apply_soft_selector(
             self, horizon: float = 40., transit_limit: float = 80.):
@@ -1813,5 +1816,59 @@ def band_limits(x: float) -> pd.Series:
         band9, band10 = True, True
     elif x > BAND_LIMS['B10']:
         band10 = True
+
+    return pd.Series([band1, band2, band3, band4, band5, band6, band7, band8, band9, band10])
+
+
+def band_flux_limits(x: float, source: str) -> pd.Series:
+
+    band1, band2, band3, band4, band5, band6, band7, band8, band9, band10 = True, True, True, True, True, True, True, True, True, True
+
+    flux_conditions={}
+    flux_conditions['Ceres']={}
+    flux_conditions['Ceres']['B1']=181.*3600.
+    flux_conditions['Ceres']['B2']=181.*3600.
+    flux_conditions['Ceres']['B3']=181.*3600.
+    flux_conditions['Ceres']['B4']=181.*3600.
+    flux_conditions['Ceres']['B5']=181.*3600.
+    flux_conditions['Ceres']['B6']=181.*3600.
+    flux_conditions['Ceres']['B7']=0.
+    flux_conditions['Ceres']['B8']=181.*3600.
+    flux_conditions['Ceres']['B9']=181.*3600.
+    flux_conditions['Ceres']['B10']=181.*3600.
+    flux_conditions['Vesta']={}
+    flux_conditions['Vesta']['B1']=181.*3600.
+    flux_conditions['Vesta']['B2']=181.*3600.
+    flux_conditions['Vesta']['B3']=181.*3600.
+    flux_conditions['Vesta']['B4']=181.*3600.
+    flux_conditions['Vesta']['B5']=181.*3600.
+    flux_conditions['Vesta']['B6']=181.*3600.
+    flux_conditions['Vesta']['B7']=90.*3600.
+    flux_conditions['Vesta']['B8']=181.*3600.
+    flux_conditions['Vesta']['B9']=181.*3600.
+    flux_conditions['Vesta']['B10']=181.*3600.
+    flux_conditions['Pallas']={}
+    flux_conditions['Pallas']['B1']=181.*3600.
+    flux_conditions['Pallas']['B2']=181.*3600.
+    flux_conditions['Pallas']['B3']=181.*3600.
+    flux_conditions['Pallas']['B4']=181.*3600.
+    flux_conditions['Pallas']['B5']=181.*3600.
+    flux_conditions['Pallas']['B6']=181.*3600.
+    flux_conditions['Pallas']['B7']=120.*3600.
+    flux_conditions['Pallas']['B8']=181.*3600.
+    flux_conditions['Pallas']['B9']=181.*3600.
+    flux_conditions['Pallas']['B10']=181.*3600.
+
+    if source in flux_conditions:
+        band1 = x > flux_conditions[source]['B1']
+        band2 = x > flux_conditions[source]['B2']
+        band3 = x > flux_conditions[source]['B3']
+        band4 = x > flux_conditions[source]['B4']
+        band5 = x > flux_conditions[source]['B5']
+        band6 = x > flux_conditions[source]['B6']
+        band7 = x > flux_conditions[source]['B7']
+        band8 = x > flux_conditions[source]['B8']
+        band9 = x > flux_conditions[source]['B9']
+        band10 = x > flux_conditions[source]['B10']
 
     return pd.Series([band1, band2, band3, band4, band5, band6, band7, band8, band9, band10])
