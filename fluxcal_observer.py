@@ -76,7 +76,8 @@ class FluxcalObs(object):
 
         self.main_frame = pd.concat(
             [self._create_source('Mars'), self._create_source('Uranus'),
-             self._create_source('Neptune')], axis=0, sort=False,
+             self._create_source('Neptune'), self._create_source('Vesta'),
+             self._create_source('Ceres')], axis=0, sort=False,
             ignore_index=True)
         self.sources = ['Mars', 'Uranus', 'Neptune']
         self.simulation_frame = None
@@ -1833,9 +1834,10 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Ceres']['B4']=181.*3600.
     flux_conditions['Ceres']['B5']=181.*3600.
     flux_conditions['Ceres']['B6']=181.*3600.
-    flux_conditions['Ceres']['B7']=0.
-    flux_conditions['Ceres']['B8']=181.*3600.
-    flux_conditions['Ceres']['B9']=181.*3600.
+    #flux_conditions['Ceres']['B7']=0.
+    flux_conditions['Ceres']['B7']=181.*3600.
+    flux_conditions['Ceres']['B8']=90.*3600.
+    flux_conditions['Ceres']['B9']=90.*3600.
     flux_conditions['Ceres']['B10']=181.*3600.
     flux_conditions['Vesta']={}
     flux_conditions['Vesta']['B1']=181.*3600.
@@ -1844,9 +1846,10 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Vesta']['B4']=181.*3600.
     flux_conditions['Vesta']['B5']=181.*3600.
     flux_conditions['Vesta']['B6']=181.*3600.
-    flux_conditions['Vesta']['B7']=90.*3600.
-    flux_conditions['Vesta']['B8']=181.*3600.
-    flux_conditions['Vesta']['B9']=181.*3600.
+    #flux_conditions['Vesta']['B7']=90.*3600.
+    flux_conditions['Vesta']['B7']=181.*3600.
+    flux_conditions['Vesta']['B8']=120.*3600.
+    flux_conditions['Vesta']['B9']=120.*3600.
     flux_conditions['Vesta']['B10']=181.*3600.
     flux_conditions['Pallas']={}
     flux_conditions['Pallas']['B1']=181.*3600.
@@ -1859,6 +1862,17 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Pallas']['B8']=181.*3600.
     flux_conditions['Pallas']['B9']=181.*3600.
     flux_conditions['Pallas']['B10']=181.*3600.
+    flux_conditions['Mars']={}
+    flux_conditions['Mars']['B1']=0.*3600.
+    flux_conditions['Mars']['B2']=0.*3600.
+    flux_conditions['Mars']['B3']=0.*3600.
+    flux_conditions['Mars']['B4']=0.*3600.
+    flux_conditions['Mars']['B5']=0.*3600.
+    flux_conditions['Mars']['B6']=0.*3600.
+    flux_conditions['Mars']['B7']=0.*3600.
+    flux_conditions['Mars']['B8']=181.*3600.
+    flux_conditions['Mars']['B9']=181.*3600.
+    flux_conditions['Mars']['B10']=181.*3600.
 
     if source in flux_conditions:
         band1 = x > flux_conditions[source]['B1']
