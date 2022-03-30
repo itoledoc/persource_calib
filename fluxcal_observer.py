@@ -79,7 +79,7 @@ class FluxcalObs(object):
              self._create_source('Neptune'), self._create_source('Vesta'),
              self._create_source('Ceres')], axis=0, sort=False,
             ignore_index=True)
-        self.sources = ['Mars', 'Uranus', 'Neptune']
+        self.sources = ['Mars', 'Uranus', 'Neptune', 'Vesta', 'Ceres']
         self.simulation_frame = None
         self._io_skycoord = get_sso_coordinates('Io', self.epoch)
         self._europa_skycoord = get_sso_coordinates('Europa', self.epoch)
