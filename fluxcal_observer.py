@@ -1400,7 +1400,8 @@ class FluxcalObs(object):
                                                                    min_timestamp=None,
                                                                    delta_timestamp=pd.Timedelta('1day'),
                                                                    band: str = '3',
-                                                                   optimal_conditions: bool = False):
+                                                                   optimal_conditions: bool = False,
+                                                                   add_amp_cal_candidates: bool = True):
         # Makes observing plan  grouping sources for the mayor peaks within the observing windows
         # of each source. So, group the sources in a different timestamps that can be calibrated
         # with first a primary and then if needed a secondary amplitude calibrator.
@@ -1481,7 +1482,7 @@ class FluxcalObs(object):
         non_ampcal_optimal_cond_sec_ampcal_timestamps = []
         non_ampcal_nonoptimal_cond_sec_ampcal_sources = []
         non_ampcal_nonoptimal_cond_sec_ampcal_timestamps = []
-        if non_ampcal_optimal_cond.shape[0] > 0:
+        if non_ampcal_optimal_cond.shape[0] > 0 and add_amp_cal_candidates:
             print("Source with non ampcal in optimal conditions: ", non_ampcal_optimal_cond.source.unique().tolist())
             # Timestamp to observe
             non_ampcal_optimal_cond_timestamps = non_ampcal_optimal_cond.timestamp.unique().tolist()
@@ -1821,7 +1822,7 @@ def band_limits(x: float) -> pd.Series:
 
 
 def band_flux_limits(x: float, source: str) -> pd.Series:
-
+    #Criteria for the flux based on the position with respect to the Sun
     band1, band2, band3, band4, band5, band6, band7, band8, band9, band10 = True, True, True, True, True, True, True, True, True, True
 
     flux_conditions={}
