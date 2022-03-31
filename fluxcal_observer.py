@@ -1474,7 +1474,7 @@ class FluxcalObs(object):
         list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
         print("Source to be observed in optimal conditions: ",list_source_optimal_cond)
         # Sources with non ampcal
-        non_ampcal_optimal_cond = a.query('(kind_b%s == 3 or kind_b%s == 4 ) and'
+        non_ampcal_optimal_cond = a.query('(kind_b%s == 4 or kind_b%s == 4 ) and'
                                           ' selSoftAll == True and source not in @list_source_optimal_cond' % (
                                           band, band)
                                           )
@@ -1527,7 +1527,7 @@ class FluxcalObs(object):
             print("Source to be observed in optimal conditions with additional secondary ampcal: ", list_source_optimal_cond)
 
             # Sources with non ampcal
-            non_ampcal_nonoptimal_cond = a.query('(kind_b%s == 3 or kind_b%s == 4 ) and'
+            non_ampcal_nonoptimal_cond = a.query('(kind_b%s == 4 or kind_b%s == 4 ) and'
                                                  ' selSoftAll == True and source not in @list_source_optimal_cond' % (
                                                  band, band)
                                                  )
@@ -1846,8 +1846,8 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Vesta']['B4']=181.*3600.
     flux_conditions['Vesta']['B5']=181.*3600.
     flux_conditions['Vesta']['B6']=181.*3600.
-    #flux_conditions['Vesta']['B7']=90.*3600.
-    flux_conditions['Vesta']['B7']=181.*3600.
+    flux_conditions['Vesta']['B7']=90.*3600.
+    #flux_conditions['Vesta']['B7']=181.*3600.
     flux_conditions['Vesta']['B8']=120.*3600.
     flux_conditions['Vesta']['B9']=120.*3600.
     flux_conditions['Vesta']['B10']=181.*3600.
