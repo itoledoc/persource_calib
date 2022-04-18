@@ -1866,8 +1866,8 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Ceres']['B6']=181.*3600.
     #flux_conditions['Ceres']['B7']=0.
     flux_conditions['Ceres']['B7']=181.*3600.
-    flux_conditions['Ceres']['B8']=60.*3600.
-    flux_conditions['Ceres']['B9']=60.*3600.
+    flux_conditions['Ceres']['B8']=50.*3600.
+    flux_conditions['Ceres']['B9']=50.*3600.
     flux_conditions['Ceres']['B10']=181.*3600.
     flux_conditions['Vesta']={}
     flux_conditions['Vesta']['B1']=181.*3600.
