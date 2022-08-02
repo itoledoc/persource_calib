@@ -1479,37 +1479,47 @@ class FluxcalObs(object):
         list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
         print("Source to be observed in optimal conditions: ",list_source_optimal_cond)
         # Select the sources with non ampcal that have not been observed recently, and observable in optimal conditions
-        non_ampcal_optimal_cond = a.query('(kind_b%s == 4 or kind_b%s == 4 ) and'
+        non_ampcal_optimal_cond = a.query('(kind_b%s == 3 or kind_b%s == 4 ) and'
                                           ' selSoftAll == True and source not in @list_source_optimal_cond' % (
                                           band, band)
                                           )
         # Defined empty in case they are not used
-        non_ampcal_optimal_cond_sec_ampcal_sources = []
-        non_ampcal_optimal_cond_sec_ampcal_timestamps = []
-        non_ampcal_nonoptimal_cond_sec_ampcal_sources = []
-        non_ampcal_nonoptimal_cond_sec_ampcal_timestamps = []
+        non_ampcal_optimal_cond_non_obs_sec_ampcal_sources = []
+        non_ampcal_optimal_cond_non_obs_sec_ampcal_timestamps = []
+        non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources = []
+        non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_timestamps = []
+        non_ampcal_optimal_cond_obs_sec_ampcal_sources = []
+        non_ampcal_optimal_cond_obs_sec_ampcal_timestamps = []
+        non_ampcal_nonoptimal_cond_obs_sec_ampcal_sources = []
+        non_ampcal_nonoptimal_cond_obs_sec_ampcal_timestamps = []
         if non_ampcal_optimal_cond.shape[0] > 0 and add_amp_cal_candidates:
             print("Source with non ampcal in optimal conditions: ", non_ampcal_optimal_cond.source.unique().tolist())
             # Timestamps to observe sources with non ampcal in optimal conditions
-            non_ampcal_optimal_cond_timestamps = non_ampcal_optimal_cond.timestamp.unique().tolist()
+            non_ampcal_optimal_cond_non_obs_timestamps = non_ampcal_optimal_cond.query("kind_b%s == 4"%(band)).timestamp.unique().tolist()
+            non_ampcal_optimal_cond_obs_timestamps = non_ampcal_optimal_cond.query("kind_b%s == 3"%(band)).timestamp.unique().tolist()
             #non_ampcal_optimal_cond_sec_ampcal = a.query(
             #    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
             #    ' and selSoftAll == True')
             #High cadence sources observable with primary amp cal and observed in optimal conditions for the timestamps
             #of the sources with non amp cal observed in optimal conditions. These are to be used as candidate of secondary
             #amp cal
-            non_ampcal_optimal_cond_sec_ampcal = a.query(
-                'source in @prim_ampcal_list_source_high_cadency and timestamp in @non_ampcal_optimal_cond_timestamps'
+            non_ampcal_optimal_cond_non_obs_sec_ampcal = a.query(
+                'source in @prim_ampcal_list_source_high_cadency and timestamp in @non_ampcal_optimal_cond_non_obs_timestamps'
+                ' and selSoftAll == True')
+            non_ampcal_optimal_cond_obs_sec_ampcal = a.query(
+                'source in @prim_ampcal_list_source_high_cadency and timestamp in @non_ampcal_optimal_cond_obs_timestamps'
                 ' and selSoftAll == True')
             #List of secondary amp cal candidates
-            non_ampcal_optimal_cond_sec_ampcal_sources = non_ampcal_optimal_cond_sec_ampcal.source.unique().tolist()
+            non_ampcal_optimal_cond_non_obs_sec_ampcal_sources = non_ampcal_optimal_cond_non_obs_sec_ampcal.source.unique().tolist()
+            non_ampcal_optimal_cond_obs_sec_ampcal_sources = non_ampcal_optimal_cond_obs_sec_ampcal.source.unique().tolist()
             #List of timestamps for secondary amp cal candidates
-            non_ampcal_optimal_cond_sec_ampcal_timestamps = non_ampcal_optimal_cond_sec_ampcal.timestamp.unique().tolist()
-            print("Additional secondary amp cal: ",non_ampcal_optimal_cond_sec_ampcal_sources)
+            non_ampcal_optimal_cond_non_obs_sec_ampcal_timestamps = non_ampcal_optimal_cond_non_obs_sec_ampcal.timestamp.unique().tolist()
+            non_ampcal_optimal_cond_obs_sec_ampcal_timestamps = non_ampcal_optimal_cond_obs_sec_ampcal.timestamp.unique().tolist()
+            print("Additional secondary amp cal for non obs sources: ",non_ampcal_optimal_cond_non_obs_sec_ampcal_sources)
+            print("Additional secondary amp cal for already obs sources: ",non_ampcal_optimal_cond_obs_sec_ampcal_sources)
             #Source with non ampcal calibrable in optimal conditions
-            non_ampcal_optimal_cond_sources = non_ampcal_optimal_cond.query(
-                'timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps').source.unique().tolist()
-
+            non_ampcal_optimal_cond_non_obs_sources = non_ampcal_optimal_cond.query(
+                'timestamp in @non_ampcal_optimal_cond_non_obs_sec_ampcal_timestamps and kind_b%s == 4'%(band)).source.unique().tolist()
             # New definition including more sources
             # Select the sources that need to be observed, by the moment we will not include those in prim_ampcal_list_source_high_cadency
             #a_source_to_observe = a.query(
@@ -1522,8 +1532,8 @@ class FluxcalObs(object):
             # candidates for secondary amp cal for sources with non amp cal in optimal conditions
             a_source_to_observe = a.query(
                 '(kind_b%s == 3 or kind_b%s == 4 '
-                'or source in @non_ampcal_optimal_cond_sec_ampcal_sources) and selAll == True' % (
-                band, band)
+                'or source in @non_ampcal_optimal_cond_non_obs_sec_ampcal_sources '
+                'or source in @non_ampcal_optimal_cond_obs_sec_ampcal_sources) and selAll == True'%(band, band)
             )
             # Select the source with prim amp cal OR second amp cal observed in optimal conditions but
             # not including the high cadence sources observed with primary ampcal in optimal conditions and
@@ -1534,8 +1544,9 @@ class FluxcalObs(object):
             a_ampcal_cond = a_source_to_observe.query(
                 '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and'
                 ' source not in @prim_ampcal_list_source_high_cadency and '
-                'source not in @non_ampcal_optimal_cond_sec_ampcal_sources) or '
-                '(source in @non_ampcal_optimal_cond_sources and timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) )'
+                'source not in @non_ampcal_optimal_cond_non_obs_sec_ampcal_sources and '
+                'source not in @non_ampcal_optimal_cond_obs_sec_ampcal_sources) or '
+                '(source in @non_ampcal_optimal_cond_non_obs_sources and timestamp in @non_ampcal_optimal_cond_non_obs_sec_ampcal_timestamps) )'
                 ' and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band, band))
 
             a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
@@ -1544,7 +1555,7 @@ class FluxcalObs(object):
             print("Source to be observed in optimal conditions with additional secondary ampcal: ", list_source_optimal_cond)
 
             # Sources with non ampcal
-            non_ampcal_nonoptimal_cond = a.query('(kind_b%s == 4 or kind_b%s == 4 ) and'
+            non_ampcal_nonoptimal_cond = a.query('(kind_b%s == 3 or kind_b%s == 4 ) and'
                                                  ' selSoftAll == True and source not in @list_source_optimal_cond' % (
                                                  band, band)
                                                  )
@@ -1552,24 +1563,38 @@ class FluxcalObs(object):
             if non_ampcal_nonoptimal_cond.shape[0] > 0:
                 print("Source with non ampcal in optimal conditions and without additional secondary ampcal: ", non_ampcal_nonoptimal_cond.source.unique().tolist())
                 # Timestamps to observe sources with non ampcal in non optimal calibration conditions
-                non_ampcal_nonoptimal_cond_timestamps = non_ampcal_nonoptimal_cond.timestamp.unique().tolist()
+                non_ampcal_nonoptimal_cond_non_obs_timestamps = non_ampcal_nonoptimal_cond.query("kind_b%s == 4"%(band)).timestamp.unique().tolist()
+                non_ampcal_nonoptimal_cond_obs_timestamps = non_ampcal_nonoptimal_cond.query("kind_b%s == 3"%(band)).timestamp.unique().tolist()
+
                 #non_ampcal_nonoptimal_cond_sec_ampcal = a.query(
                 #    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_optimal_cond_timestamps'
                 #    ' and selAll == True')
                 # High cadence sources observable with primary amp cal and observed in non optimal conditions for the timestamps
                 # of the sources with non amp cal observed in optimal conditions. These are to be used as candidate of secondary
                 # amp cal
-                non_ampcal_nonoptimal_cond_sec_ampcal = a.query(
-                    'source in @prim_ampcal_list_source_high_cadency and timestamp in @non_ampcal_optimal_cond_timestamps'
+                print("Timestamps: ",non_ampcal_nonoptimal_cond_non_obs_timestamps)
+                print("Potential Secondary ampcals:",prim_ampcal_list_source_high_cadency)
+                #non_ampcal_nonoptimal_cond_sec_ampcal = a.query(
+                #    '(source in @prim_ampcal_list_source_high_cadency or (kind_b%s == 2 and cadence < 7.)) and timestamp in @non_ampcal_optimal_cond_timestamps'
+                #    ' and selAll == True'%(band))
+                non_ampcal_nonoptimal_cond_non_obs_sec_ampcal = a.query(
+                    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_nonoptimal_cond_non_obs_timestamps'
+                    ' and selAll == True')
+                non_ampcal_nonoptimal_cond_obs_sec_ampcal = a.query(
+                    'source in @prim_ampcal_list_source and timestamp in @non_ampcal_nonoptimal_cond_obs_timestamps'
                     ' and selAll == True')
                 # List of secondary amp cal candidates
-                non_ampcal_nonoptimal_cond_sec_ampcal_sources = non_ampcal_nonoptimal_cond_sec_ampcal.source.unique().tolist()
+                non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources = non_ampcal_nonoptimal_cond_non_obs_sec_ampcal.source.unique().tolist()
+                non_ampcal_nonoptimal_cond_obs_sec_ampcal_sources = non_ampcal_nonoptimal_cond_obs_sec_ampcal.source.unique().tolist()
                 # List of timestamps for secondary amp cal candidates
-                non_ampcal_nonoptimal_cond_sec_ampcal_timestamps = non_ampcal_nonoptimal_cond_sec_ampcal.timestamp.unique().tolist()
-                print("Additional secondary amp cal in non optimal cond: ", non_ampcal_nonoptimal_cond_sec_ampcal_sources)
+                non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_timestamps = non_ampcal_nonoptimal_cond_non_obs_sec_ampcal.timestamp.unique().tolist()
+                non_ampcal_nonoptimal_cond_obs_sec_ampcal_timestamps = non_ampcal_nonoptimal_cond_obs_sec_ampcal.timestamp.unique().tolist()
+                print("Additional secondary amp cal in non optimal cond for non obs sources: ", non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources)
+                print("Additional secondary amp cal in non optimal cond for already obs sources: ",non_ampcal_nonoptimal_cond_obs_sec_ampcal_sources)
+ 
                 # Source with non ampcal calibrable in non optimal conditions
-                non_ampcal_nonoptimal_cond_sources = non_ampcal_nonoptimal_cond.query(
-                    'timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps').source.unique().tolist()
+                non_ampcal_nonoptimal_cond_non_obs_sources = non_ampcal_nonoptimal_cond.query(
+                    'timestamp in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_timestamps and kind_b%s == 4'%(band)).source.unique().tolist()        
                 # New definition including more sources
                 # Select the sources that need to be observed, by the moment we will not include those in prim_ampcal_list_source_high_cadency
                 #a_source_to_observe = a.query(
@@ -1583,8 +1608,10 @@ class FluxcalObs(object):
                 # optimal or non optimal calibration conditions
                 a_source_to_observe = a.query(
                     '(kind_b%s == 3 or kind_b%s == 4 '
-                    'or source in @non_ampcal_optimal_cond_sec_ampcal_sources '
-                    'or source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources) '
+                    'or source in @non_ampcal_optimal_cond_non_obs_sec_ampcal_sources '
+                    'or source in @non_ampcal_optimal_cond_obs_sec_ampcal_sources '
+                    'or source in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources '
+                    'or source in @non_ampcal_nonoptimal_cond_obs_sec_ampcal_sources) '
                     'and selAll == True' % (band, band)
                 )
                 # Select the source with prim amp cal OR second amp cal observed in optimal conditions but
@@ -1597,12 +1624,15 @@ class FluxcalObs(object):
                 a_ampcal_cond = a_source_to_observe.query(
                     '(B%s_soft_prim_ampcal > 0 or (B%s_soft_second_ampcal > 0 and '
                     'source not in @prim_ampcal_list_source_high_cadency and '
-                    'source not in @non_ampcal_optimal_cond_sec_ampcal_sources) or '
-                    '(source in @non_ampcal_optimal_cond_sources and timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) or '
-                    '(source in @non_ampcal_nonoptimal_cond_sources and timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps) ) '
+                    'source not in @non_ampcal_optimal_cond_non_obs_sec_ampcal_sources and '
+                    'source not in @non_ampcal_optimal_cond_obs_sec_ampcal_sources and '
+                    'source not in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources and '
+                    'source not in @non_ampcal_nonoptimal_cond_obs_sec_ampcal_sources) or '
+                    '(source in @non_ampcal_optimal_cond_non_obs_sources and timestamp in @non_ampcal_optimal_cond_non_obs_sec_ampcal_timestamps) or '
+                    '(source in @non_ampcal_nonoptimal_cond_non_obs_sources and timestamp in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_timestamps) ) '
                     'and timestamp > @init_timestamp and timestamp <= @last_timestamp' % (band, band))
 
-                a_optimal_cond = a_ampcal_cond.query('selSoftAll == True')
+                a_optimal_cond = a_ampcal_cond.query('selSoftAll == True or source in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources')
 
                 list_source_optimal_cond = a_optimal_cond.source.unique().tolist()
 
@@ -1664,11 +1694,15 @@ class FluxcalObs(object):
 
         a_final_optimal_cond = a_final_optimal_cond.merge(prim_ampcal, on='timestamp', how='left')
         # Define secondary ampcal list, for those source with non amp cal, here are incliuded the candidates to sec ampcal
-        second_ampcal = a.query('timestamp in @a_final_optimal_cond.timestamp.tolist() and (((kind_b%s == 2'
-                                ' or (source in @non_ampcal_optimal_cond_sec_ampcal_sources and '
-                                'timestamp in @non_ampcal_optimal_cond_sec_ampcal_timestamps) ) and selSoftAll)'
-                                'or (source in @non_ampcal_nonoptimal_cond_sec_ampcal_sources and '
-                                'timestamp in @non_ampcal_nonoptimal_cond_sec_ampcal_timestamps and selAll))' % (band)
+        second_ampcal = a.query('timestamp in @a_final_optimal_cond.timestamp.tolist() and '
+                                '(((kind_b%s == 2 or '
+                                '(source in @non_ampcal_optimal_cond_non_obs_sec_ampcal_sources and timestamp in @non_ampcal_optimal_cond_non_obs_sec_ampcal_timestamps) or '
+                                '(source in @non_ampcal_optimal_cond_obs_sec_ampcal_sources and timestamp in @non_ampcal_optimal_cond_obs_sec_ampcal_timestamps)) '                                
+                                'and selSoftAll) or '
+                                '(source in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_sources and timestamp in @non_ampcal_nonoptimal_cond_non_obs_sec_ampcal_timestamps'
+                                ' and selAll) or '
+                                '(source in @non_ampcal_nonoptimal_cond_obs_sec_ampcal_sources and timestamp in @non_ampcal_nonoptimal_cond_obs_sec_ampcal_timestamps'
+                                ' and selAll))' % (band)
                                 ).groupby(['timestamp']
                                           )[['source']].aggregate(lambda x: x.unique().tolist()
                                                                   ).reset_index().rename(
@@ -1899,7 +1933,7 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Mars']['B4']=0.*3600.
     flux_conditions['Mars']['B5']=0.*3600.
     flux_conditions['Mars']['B6']=0.*3600.
-    flux_conditions['Mars']['B7']=0.*3600.
+    flux_conditions['Mars']['B7']=181.*3600.
     flux_conditions['Mars']['B8']=181.*3600.
     flux_conditions['Mars']['B9']=181.*3600.
     flux_conditions['Mars']['B10']=181.*3600.
