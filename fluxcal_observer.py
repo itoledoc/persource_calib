@@ -1937,6 +1937,18 @@ def band_flux_limits(x: float, source: str) -> pd.Series:
     flux_conditions['Mars']['B8']=181.*3600.
     flux_conditions['Mars']['B9']=181.*3600.
     flux_conditions['Mars']['B10']=181.*3600.
+    for sso in ["Uranus","Neptune","Ganymede","Callisto"]:
+        flux_conditions[sso]={}
+        flux_conditions[sso]['B1']=181.*3600.
+        flux_conditions[sso]['B2']=0.*3600.
+        flux_conditions[sso]['B3']=0.*3600.
+        flux_conditions[sso]['B4']=0.*3600.
+        flux_conditions[sso]['B5']=0.*3600.
+        flux_conditions[sso]['B6']=0.*3600.
+        flux_conditions[sso]['B7']=0.*3600.
+        flux_conditions[sso]['B8']=0.*3600.
+        flux_conditions[sso]['B9']=0.*3600.
+        flux_conditions[sso]['B10']=0.*3600.
 
     if source in flux_conditions:
         band1 = x > flux_conditions[source]['B1']
